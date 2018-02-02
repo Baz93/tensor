@@ -8,41 +8,53 @@ using namespace std;
 template<typename T, size_t D> class tensor_slice;
 
 
-template<
-    size_t I1, size_t I2, typename T1, size_t D1, typename T2, size_t D2
-> inline void add(
-    const tensor_slice<T1, D1> &slice1, const tensor_slice<T2, D2> &slice2,
-    T1 *ptr1, const T2 *ptr2, REQUEST(I1 == I2), REQUEST(I1 == 0)
-) {
-    UNUSED(slice1);
-    UNUSED(slice2);
-    *ptr1 += *ptr2;
-}
+template<typename T1, size_t D1, typename T2, size_t D2> class tensor_add {
+private:
+    const tensor_slice<T1, D1> *_slice1;
+    const tensor_slice<T2, D2> *_slice2;
 
-template<
-    size_t I1, size_t I2, typename T1, size_t D1, typename T2, size_t D2
-> inline void add(
-    const tensor_slice<T1, D1> &slice1, const tensor_slice<T2, D2> &slice2,
-    T1 *ptr1, const T2 *ptr2, REQUEST(I1 == I2), REQUEST(I1 > 0)
-) {
-    for (size_t i = 0; i < slice1.shape[D1 - I1]; ++i) {
-        add<I1 - 1, I2 - 1>(slice1, slice2, ptr1, ptr2);
-        ptr1 += slice1.shift[D1 - I1];
-        ptr2 += slice2.shift[D2 - I2];
-    }
-}
+public:
+    tensor_add(const tensor_slice<T1, D1> *slice1, const tensor_slice<T2, D2> *slice2) :
+        _slice1(slice1), _slice2(slice2)
+    {}
 
-template<
-    size_t I1, size_t I2, typename T1, size_t D1, typename T2, size_t D2
-> inline void add(
-    const tensor_slice<T1, D1> &slice1, const tensor_slice<T2, D2> &slice2,
-    T1 *ptr1, const T2 *ptr2, REQUEST(I1 > I2)
-) {
-    for (size_t i = 0; i < slice1.shape[D1 - I1]; ++i) {
-        add<I1 - 1, I2>(slice1, slice2, ptr1, ptr2);
-        ptr1 += slice1.shift[D1 - I1];
+private:
+    template<size_t I1, size_t I2> void rec(
+        T1 *ptr1, const T2 *ptr2, REQUEST(I1 == I2), REQUEST(I1 == 0)
+    ) const {
+        *ptr1 += *ptr2;
     }
-}
+
+    template<size_t I1, size_t I2> void rec(
+        T1 *ptr1, const T2 *ptr2, REQUEST(I1 == I2), REQUEST(I1 > 0)
+    ) const {
+        for (size_t i = 0; i < _slice1->shape[D1 - I1]; ++i) {
+            rec<I1 - 1, I2 - 1>(ptr1, ptr2);
+            ptr1 += _slice1->shift[D1 - I1];
+            ptr2 += _slice2->shift[D2 - I2];
+        }
+    }
+
+    template<size_t I1, size_t I2> inline void rec(
+        T1 *ptr1, const T2 *ptr2, REQUEST(I1 > I2)
+    ) const {
+        for (size_t i = 0; i < _slice1->shape[D1 - I1]; ++i) {
+            rec<I1 - 1, I2>(ptr1, ptr2);
+            ptr1 += _slice1->shift[D1 - I1];
+        }
+    }
+
+public:
+    template<size_t I1, size_t I2> inline void run(
+        T1 *ptr1, const T2 *ptr2
+    ) const {
+        static_assert(I1 >= I2);
+        for (size_t i = I2; i > 0; --i) {
+            assert(_slice1->shape[D1 - i] == _slice2->shape[D2 - i]);
+        }
+        rec<I1, I2>(ptr1, ptr2);
+    }
+};
 
 
 template<typename T, size_t D, size_t I> class tensor_iterator;
@@ -100,11 +112,8 @@ public:
     template<typename OTHER_T, size_t OTHER_D, size_t OTHER_I> tensor_subslice &operator+=(
         const tensor_subslice<OTHER_T, OTHER_D, OTHER_I> &other
     ) {
-        static_assert(OTHER_I <= I);
-        for (size_t i = OTHER_I; i > 0; --i) {
-            assert(_slice->shape[D - i] == other._slice->shape[OTHER_D - i]);
-        }
-        add<I, OTHER_I>(*_slice, *other._slice, _ptr, other.get_ptr());
+        tensor_add<T, D, OTHER_T, OTHER_D> operation(_slice, other._slice);
+        operation.template run<I, OTHER_I>(_ptr, other.get_ptr());
         return *this;
     }
 };

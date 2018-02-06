@@ -5,55 +5,96 @@ using namespace std;
 #define REQUEST(x) char(*)[bool(x)] = 0
 
 
+template<typename T> constexpr T constexpr_max(T x) {
+    return x;
+}
+
+template<typename T0, typename T1> constexpr T0 constexpr_max(T0 x0, T1 x1) {
+    return x0 > x1 ? x0 : x1;
+}
+
+template<
+    typename T0, typename T1, typename T2, typename ...T
+> constexpr T0 constexpr_max(T0 x0, T1 x1, T2 x2, T ...x) {
+    return constexpr_max(x0, constexpr_max(x1, x2, x...));
+}
+
+
+template<typename T, size_t D> class tensor;
 template<typename T, size_t D> class tensor_slice;
+template<typename T, size_t D, size_t I> class tensor_subslice;
 
 
-template<typename T1, size_t D1, typename T2, size_t D2> class tensor_add {
-private:
-    const tensor_slice<T1, D1> *_slice1;
-    const tensor_slice<T2, D2> *_slice2;
+template<typename OP, typename ...T> struct element_wise_apply_impl;
 
-public:
-    tensor_add(const tensor_slice<T1, D1> *slice1, const tensor_slice<T2, D2> *slice2) :
-        _slice1(slice1), _slice2(slice2)
-    {}
+template<
+    typename OP, typename ...T, size_t ...D, size_t ...I
+> struct element_wise_apply_impl<OP, tensor_subslice<T, D, I>...> {
+    static constexpr tuple<decltype(D)...> Ds{D...};
+    static constexpr tuple<decltype(I)...> Is{I...};
+    static constexpr size_t M = constexpr_max(I...);
 
-private:
-    template<size_t I1, size_t I2> void rec(
-        T1 *ptr1, const T2 *ptr2, REQUEST(I1 == I2), REQUEST(I1 == 0)
-    ) const {
-        *ptr1 += *ptr2;
-    }
+    const tuple<const tensor_slice<T, D> *...> slice;
+    const OP op;
 
-    template<size_t I1, size_t I2> void rec(
-        T1 *ptr1, const T2 *ptr2, REQUEST(I1 == I2), REQUEST(I1 > 0)
-    ) const {
-        for (size_t i = 0; i < _slice1->shape[D1 - I1]; ++i) {
-            rec<I1 - 1, I2 - 1>(ptr1, ptr2);
-            ptr1 += _slice1->shift[D1 - I1];
-            ptr2 += _slice2->shift[D2 - I2];
+    array<size_t, M> shape;
+
+    explicit element_wise_apply_impl(const tensor_slice<T, D> *...slice_, const OP &op_) :
+        slice(slice_...), op(op_)
+    {
+        for (size_t i = 0; i < M; ++i) {
+            shape[i] = size_t(-1);
+            for (size_t val : {(i < I ? slice_->shape[D - 1 - i] : size_t(-1))...}) {
+                if (shape[i] == size_t(-1)) {
+                    shape[i] = val;
+                } else {
+                    if (val != size_t(-1)) {
+                        assert(shape[i] == val);
+                    }
+                }
+            }
+            assert(shape[i] != size_t(-1));
         }
     }
 
-    template<size_t I1, size_t I2> inline void rec(
-        T1 *ptr1, const T2 *ptr2, REQUEST(I1 > I2)
-    ) const {
-        for (size_t i = 0; i < _slice1->shape[D1 - I1]; ++i) {
-            rec<I1 - 1, I2>(ptr1, ptr2);
-            ptr1 += _slice1->shift[D1 - I1];
-        }
-    }
+    template<size_t R> void inc() {};
 
-public:
-    template<size_t I1, size_t I2> inline void run(
-        T1 *ptr1, const T2 *ptr2
-    ) const {
-        static_assert(I1 >= I2);
-        for (size_t i = I2; i > 0; --i) {
-            assert(_slice1->shape[D1 - i] == _slice2->shape[D2 - i]);
+    template<size_t R, typename Q, typename ...P> void inc(Q *q, P *...ptr) {
+        constexpr size_t i = sizeof...(T) - 1 - sizeof...(P);
+        if (R <= get<i>(Is)) {
+            q += get<i>(slice)->shift[get<i>(Ds) - R];
         }
-        rec<I1, I2>(ptr1, ptr2);
-    }
+        inc<R, P...>(ptr...);
+    };
+
+    template<size_t R, typename ...P> void rec(P *...ptr, REQUEST(R == 0)) {
+        op(*ptr...);
+    };
+
+    template<size_t R, typename ...P> void rec(P *...ptr, REQUEST(R > 0)) {
+        for (size_t i = 0; i < shape[R - 1]; ++i) {
+            rec<R - 1, P...>(ptr...);
+            inc<R, P...>(ptr...);
+        }
+    };
+
+    template<typename ...P> void operator()(P *...ptr) {
+        rec<M, P...>(ptr...);
+    };
+};
+
+template<
+    typename OP, typename ...T, size_t ...D, size_t ...I
+> constexpr tuple<decltype(D)...> element_wise_apply_impl<OP, tensor_subslice<T, D, I>...>::Ds;
+
+template<
+    typename OP, typename ...T, size_t ...D, size_t ...I
+> constexpr tuple<decltype(I)...> element_wise_apply_impl<OP, tensor_subslice<T, D, I>...>::Is;
+
+template<typename OP, typename ...T, size_t ...D, size_t ...I> void element_wise_apply (
+    const OP &op, tensor_subslice<T, D, I> ...a
+) {
+    element_wise_apply_impl<OP, tensor_subslice<T, D, I>...>(a._slice..., op)(a.get_ptr()...);
 };
 
 
@@ -109,12 +150,20 @@ public:
         return *(begin() += i);
     }
 
+    template<typename OTHER_T, size_t OTHER_D, size_t OTHER_I> tensor_subslice &operator=(
+        const tensor_subslice<OTHER_T, OTHER_D, OTHER_I> &other
+    ) {
+        element_wise_apply([](T &lhs, const OTHER_T &rhs) {
+            lhs = rhs;
+        }, *this, other);
+    }
+
     template<typename OTHER_T, size_t OTHER_D, size_t OTHER_I> tensor_subslice &operator+=(
         const tensor_subslice<OTHER_T, OTHER_D, OTHER_I> &other
     ) {
-        tensor_add<T, D, OTHER_T, OTHER_D> operation(_slice, other._slice);
-        operation.template run<I, OTHER_I>(_ptr, other.get_ptr());
-        return *this;
+        element_wise_apply([](T &lhs, const OTHER_T &rhs) {
+            lhs += rhs;
+        }, *this, other);
     }
 };
 

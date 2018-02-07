@@ -20,6 +20,14 @@ template<
 }
 
 
+struct dimension_slice {
+    static const size_t NA = size_t(-1);
+
+    size_t dimension, size = NA;
+    ptrdiff_t step = 1;
+};
+
+
 template<typename T, size_t D> class tensor;
 template<typename T, size_t D> class tensor_slice;
 template<typename T, size_t D, size_t I> class tensor_subslice;
@@ -62,7 +70,7 @@ template<
     template<size_t R, typename Q, typename ...P> void inc(Q *q, P *...ptr) {
         constexpr size_t i = sizeof...(T) - 1 - sizeof...(P);
         if (R <= get<i>(Is)) {
-            q += get<i>(slice)->shift[get<i>(Ds) - R];
+            q += get<i>(slice)->step[get<i>(Ds) - R];
         }
         inc<R, P...>(ptr...);
     };
@@ -179,7 +187,59 @@ public:
         return *(begin() += i);
     }
 
-    tensor_subslice& operator= (const tensor_subslice &other) {
+private:
+    template<size_t K, typename R> tensor_slice<R, K> slice_impl(
+        const array<size_t, I> shift, const array<dimension_slice, K> &order
+    ) const {
+        R *ptr = _ptr;
+        for (size_t i = 0; i < I; ++i) {
+            ptr += shift[i] * _slice->step[D - I + i];
+        }
+
+        array<size_t, K> shape;
+        array<ptrdiff_t, K> step;
+        array<size_t, I> min_index = shift, max_index = shift;
+        for (size_t i = 0; i < K; ++i) {
+            if (order[i].step == 0) {
+                shape[i] = order[i].size;
+                step[i] = 0;
+            } else {
+                shape[i] = order[i].size;
+                if (shape[i] == dimension_slice::NA) {
+                    shape[i] = _slice->shape[D - I + order[i].dimension];
+                }
+                step[i] = order[i].step * _slice->step[D - I + order[i].dimension];
+                assert(shape[i] > 0);
+                if (step[i] > 0) {
+                    max_index[order[i].dimension] += (shape[i] - 1) * order[i].step;
+                } else {
+                    min_index[order[i].dimension] += (shape[i] - 1) * order[i].step;
+                }
+            }
+        }
+
+        for (size_t i = 0; i < I; ++i) {
+            assert(min_index < _slice->shape[D - I + i]);
+            assert(max_index < _slice->shape[D - I + i]);
+        }
+
+        return tensor_slice<R, K>(shape, step, ptr);
+    };
+
+public:
+    template<size_t K> tensor_slice<T, K> slice(
+        const array<size_t, I> shift, const array<dimension_slice, K> &order
+    ) {
+        return slice_impl<K, T>(shift, order);
+    };
+
+    template<size_t K> tensor_slice<const T, K> slice(
+        const array<size_t, I> shift, const array<dimension_slice, K> &order
+    ) const {
+        return slice_impl<K, const T>(shift, order);
+    };
+
+    tensor_subslice& operator=(const tensor_subslice &other) {
         return operator=<T, D, I>(other);
     }
 
@@ -507,15 +567,21 @@ template<typename T, size_t D, size_t I> class tensor_iterator :
         typename conditional<I == 0, T, tensor_subslice<T, D, I>>::type
     >
 {
+protected:
+    size_t _index;
+
+    friend tensor_subslice<T, D, I - 1>;
+
+    tensor_iterator(const tensor_slice<T, D> *slice, T *ptr, size_t index = 0) :
+        tensor_subslice<T, D, I>(slice, ptr),
+        _index(index)
+    {}
+
 public:
     using value_type = typename iterator<
         random_access_iterator_tag,
         typename conditional<I == 0, T, tensor_subslice<T, D, I>>::type
     >::value_type;
-
-    tensor_iterator(const tensor_slice<T, D> *slice, T *ptr) :
-        tensor_subslice<T, D, I>(slice, ptr)
-    {}
 
 private:
     value_type *arrow(REQUEST(I == 0)) {
@@ -552,22 +618,26 @@ public:
     }
 
     tensor_iterator &operator++() {
-        tensor_subslice<T, D, I>::_ptr += tensor_subslice<T, D, I>::_slice->shift[D - I];
+        tensor_subslice<T, D, I>::_ptr += tensor_subslice<T, D, I>::_slice->step[D - I];
+        _index++;
         return *this;
     }
 
     tensor_iterator &operator--() {
-        tensor_subslice<T, D, I>::_ptr -= tensor_subslice<T, D, I>::_slice->shift[D - I];
+        tensor_subslice<T, D, I>::_ptr -= tensor_subslice<T, D, I>::_slice->step[D - I];
+        _index--;
         return *this;
     }
 
     tensor_iterator &operator+=(ptrdiff_t n) {
-        tensor_subslice<T, D, I>::_ptr += n * tensor_subslice<T, D, I>::_slice->shift[D - I];
+        tensor_subslice<T, D, I>::_ptr += n * tensor_subslice<T, D, I>::_slice->step[D - I];
+        _index += n;
         return *this;
     }
 
     tensor_iterator &operator-=(ptrdiff_t n) {
-        tensor_subslice<T, D, I>::_ptr -= n * tensor_subslice<T, D, I>::_slice->shift[D - I];
+        tensor_subslice<T, D, I>::_ptr -= n * tensor_subslice<T, D, I>::_slice->step[D - I];
+        _index -= n;
         return *this;
     }
 
@@ -594,19 +664,19 @@ public:
     }
 
     bool operator<(const tensor_iterator &other) {
-        return tensor_subslice<T, D, I>::_ptr < other._ptr;
+        return _index < other._index;
     }
 
     bool operator>(const tensor_iterator &other) {
-        return tensor_subslice<T, D, I>::_ptr > other._ptr;
+        return _index > other._index;
     }
 
     bool operator==(const tensor_iterator &other) {
-        return tensor_subslice<T, D, I>::_ptr == other._ptr;
+        return _index == other._index;
     }
 
     bool operator!=(const tensor_iterator &other) {
-        return tensor_subslice<T, D, I>::_ptr != other._ptr;
+        return _index != other._index;
     }
 };
 
@@ -614,12 +684,12 @@ public:
 template<typename T, size_t D> class tensor_slice : public tensor_subslice<T, D, D> {
 public:
     const array<size_t, D> shape;
-    const array<size_t, D> shift;
+    const array<ptrdiff_t, D> step;
 
 public:
-    tensor_slice(const array<size_t, D> &shape_, const array<size_t, D> &shift_, T *data = nullptr) :
+    tensor_slice(const array<size_t, D> &shape_, const array<ptrdiff_t, D> &step_, T *data = nullptr) :
         tensor_subslice<T, D, D>(this, data),
-        shape(shape_), shift(shift_)
+        shape(shape_), step(step_)
     {}
 
     tensor_slice& operator= (const tensor_slice &other) {
@@ -637,9 +707,9 @@ public:
 };
 
 
-template<size_t D> array<size_t, D> default_shift(const array<size_t, D> &shape_) {
-    array<size_t, D> result;
-    size_t product = 1;
+template<size_t D> array<ptrdiff_t, D> default_step(const array<size_t, D> &shape_) {
+    array<ptrdiff_t, D> result;
+    ptrdiff_t product = 1;
     for (size_t i = D; i-- > 0; ) {
         result[i] = product;
         product *= shape_[i];
@@ -686,7 +756,7 @@ private:
 
 public:
     explicit tensor(const array<size_t, D> &shape_, const T &value = T()) :
-        tensor_slice<T, D>(shape_, default_shift(shape_)),
+        tensor_slice<T, D>(shape_, default_step(shape_)),
         _data(product(shape_), value)
     {
         tensor_slice<T, D>::_ptr = _data.data();

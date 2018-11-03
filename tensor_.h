@@ -152,7 +152,7 @@ template<typename OP, typename ...T, size_t ...D, size_t ...I> auto element_wise
 template<typename T, size_t D, size_t I> class tensor_iterator;
 
 
-template<typename T, size_t D, size_t I> class tensor_subslice_iterable {
+template<typename T, size_t D, size_t I> class tensor_subslice {
 public:
     const tensor_slice<T, D> *const _slice;
 
@@ -160,10 +160,20 @@ protected:
     T *_ptr;
 
 public:
+    T *get_ptr() {
+        return _ptr;
+    }
+
+    const T *get_ptr() const {
+        return _ptr;
+    }
+
+private:
     using iterator = tensor_iterator<T, D, I - 1>;
     using const_iterator = tensor_iterator<const T, D, I - 1>;
 
-    tensor_subslice_iterable(const tensor_slice<T, D> *slice, T *ptr) :
+public:
+    tensor_subslice(const tensor_slice<T, D> *slice, T *ptr) :
         _slice(slice), _ptr(ptr)
     {}
 
@@ -190,40 +200,6 @@ public:
     typename const_iterator::value_type operator[](size_t i) const {
         return *(begin() += i);
     }
-};
-
-
-template<typename T, size_t D> class tensor_subslice_iterable<T, D, 0> {
-public:
-    const tensor_slice<T, D> *const _slice;
-
-protected:
-    T *_ptr;
-
-public:
-    tensor_subslice_iterable(const tensor_slice<T, D> *slice, T *ptr) :
-        _slice(slice), _ptr(ptr)
-    {}
-};
-
-
-template<typename T, size_t D, size_t I> class tensor_subslice : public tensor_subslice_iterable<T, D, I> {
-public:
-    using tensor_subslice_iterable<T, D, I>::_slice;
-    using tensor_subslice_iterable<T, D, I>::_ptr;
-public:
-    T *get_ptr() {
-        return _ptr;
-    }
-
-    const T *get_ptr() const {
-        return _ptr;
-    }
-
-public:
-    tensor_subslice(const tensor_slice<T, D> *slice, T *ptr) :
-        tensor_subslice_iterable<T, D, I>(slice, ptr)
-    {}
 
 private:
     template<size_t K, typename R> tensor_slice<R, K> slice_impl(
@@ -408,6 +384,9 @@ public:
         return *this;
     }
 };
+
+
+template<typename T, size_t D> class tensor_subslice<T, D, -1> {};
 
 
 template<
@@ -627,7 +606,7 @@ template<typename T, size_t D, size_t I> class tensor_iterator :
     private tensor_subslice<T, D, I>,
     public std::iterator<
         std::random_access_iterator_tag,
-        tensor_subslice<T, D, I>
+        typename std::conditional<I == 0, T, tensor_subslice<T, D, I>>::type
     >
 {
 protected:
@@ -635,7 +614,7 @@ protected:
 
     template<
         typename OTHER_T, size_t OTHER_D, size_t OTHER_I
-    > friend class tensor_subslice_iterable;
+    > friend class tensor_subslice;
 
     tensor_iterator(const tensor_slice<T, D> *slice, T *ptr, size_t index = 0) :
         tensor_subslice<T, D, I>(slice, ptr),
@@ -645,15 +624,23 @@ protected:
 public:
     using value_type = typename std::iterator<
         std::random_access_iterator_tag,
-        tensor_subslice<T, D, I>
+        typename std::conditional<I == 0, T, tensor_subslice<T, D, I>>::type
     >::value_type;
 
 private:
-    value_type *arrow() {
+    template<typename DUMMY = void> REQUEST_RET(I == 0, value_type *) arrow() {
+        return tensor_subslice<T, D, I>::_ptr;
+    }
+
+    template<typename DUMMY = void> REQUEST_RET(I > 0, value_type *) arrow() {
         return static_cast<value_type *>(this);
     }
 
-    const value_type *arrow() const {
+    template<typename DUMMY = void> REQUEST_RET(I == 0, const value_type *) arrow() const {
+        return tensor_subslice<T, D, I>::_ptr;
+    }
+
+    template<typename DUMMY = void> REQUEST_RET(I > 0, const value_type *) arrow() const {
         return static_cast<const value_type *>(this);
     }
 
@@ -675,25 +662,25 @@ public:
     }
 
     tensor_iterator &operator++() {
-        tensor_subslice<T, D, I>::_ptr += tensor_subslice<T, D, I>::_slice->step[D - I - 1];
+        tensor_subslice<T, D, I>::_ptr += tensor_subslice<T, D, I>::_slice->step[D - I];
         _index++;
         return *this;
     }
 
     tensor_iterator &operator--() {
-        tensor_subslice<T, D, I>::_ptr -= tensor_subslice<T, D, I>::_slice->step[D - I - 1];
+        tensor_subslice<T, D, I>::_ptr -= tensor_subslice<T, D, I>::_slice->step[D - I];
         _index--;
         return *this;
     }
 
     tensor_iterator &operator+=(ptrdiff_t n) {
-        tensor_subslice<T, D, I>::_ptr += n * tensor_subslice<T, D, I>::_slice->step[D - I - 1];
+        tensor_subslice<T, D, I>::_ptr += n * tensor_subslice<T, D, I>::_slice->step[D - I];
         _index += n;
         return *this;
     }
 
     tensor_iterator &operator-=(ptrdiff_t n) {
-        tensor_subslice<T, D, I>::_ptr -= n * tensor_subslice<T, D, I>::_slice->step[D - I - 1];
+        tensor_subslice<T, D, I>::_ptr -= n * tensor_subslice<T, D, I>::_slice->step[D - I];
         _index -= n;
         return *this;
     }

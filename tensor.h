@@ -4,9 +4,11 @@
 #include <array>
 #include <vector>
 #include <tuple>
+#include <type_traits>
 
 #define UNUSED(x) (void)(x)
-#define REQUEST(x) char(*)[bool(x)] = 0
+#define REQUEST_ARG(x) char(*)[bool(x)] = 0
+#define REQUEST_RET(x,...) typename std::enable_if<bool(x), __VA_ARGS__>::type
 
 
 template<typename T> constexpr T constexpr_max(T x) {
@@ -38,24 +40,33 @@ template<typename T, size_t D, size_t I> class tensor_subslice;
 
 
 template<
-    typename ...T, size_t ...D, size_t ...I
-> std::array<size_t, constexpr_max(I...)> common_shape (tensor_subslice<T, D, I> ...a) {
+    size_t K = 0, typename ...T, size_t ...D, size_t ...I
+> REQUEST_RET(constexpr_max(I...) >= K, std::array<size_t, constexpr_max(I...) - K>) common_shape(
+    tensor_subslice<T, D, I> ...a
+) {
     constexpr size_t M = constexpr_max(I...);
-    std::array<size_t, M> shape;
-    for (size_t i = 0; i < M; ++i) {
-        shape[i] = size_t(-1);
+    std::array<size_t, M - K> shape;
+    for (size_t i = K; i < M; ++i) {
+        size_t &res = shape[i];
+        res = size_t(-1);
         for (size_t val : {(i < M - I ? size_t(-1) : a._slice->shape[D - M + i])...}) {
-            if (shape[i] == size_t(-1)) {
-                shape[i] = val;
+            if (res == size_t(-1)) {
+                res = val;
             } else {
-                if (val != size_t(-1)) {
-                    assert(shape[i] == val);
-                }
+                assert(val == size_t(-1) || res == val);
             }
         }
-        assert(shape[i] != size_t(-1));
+        assert(res != size_t(-1));
     }
     return shape;
+};
+
+template<
+    typename R, size_t K = 0, typename ...T, size_t ...D, size_t ...I
+> REQUEST_RET(constexpr_max(I...) >= K, tensor<R, constexpr_max(I...) - K>) tensor_of_common_shape(
+    tensor_subslice<T, D, I> ...a
+) {
+    return tensor<R, constexpr_max(I...) - K>(common_shape<K>(a...));
 };
 
 
@@ -87,11 +98,11 @@ template<
         inc<R, P...>(ptr...);
     };
 
-    template<size_t R, typename ...P> void rec(P *...ptr, REQUEST(R == 0)) {
+    template<size_t R, typename ...P> REQUEST_RET(R == 0, void) rec(P *...ptr) {
         op(*ptr...);
     };
 
-    template<size_t R, typename ...P> void rec(P *...ptr, REQUEST(R > 0)) {
+    template<size_t R, typename ...P> REQUEST_RET(R > 0, void) rec(P *...ptr) {
         for (size_t i = 0; i < shape[R - 1]; ++i) {
             rec<R - 1, P...>(ptr...);
             inc<R, P...>(ptr...);
@@ -117,17 +128,24 @@ template<typename OP, typename ...T, size_t ...D, size_t ...I> void element_wise
     element_wise_apply_impl<OP, tensor_subslice<T, D, I>...>(a..., op)(a.get_ptr()...);
 };
 
-template<typename OP, typename ...T, size_t ...D, size_t ...I> auto element_wise_calc (
+template<
+    typename R, size_t K = 0, typename OP, typename ...T, size_t ...D, size_t ...I
+> auto element_wise_calc_reduce(
+    const OP &op, tensor_subslice<T, D, I> ...a
+) -> REQUEST_RET(constexpr_max(I...) >= K, tensor<R, constexpr_max(I...) - K>) {
+    auto result = tensor_of_common_shape<R, K>(a...);
+    element_wise_apply(op, result, a...);
+    return result;
+};
+
+template<typename OP, typename ...T, size_t ...D, size_t ...I> auto element_wise_calc(
     const OP &op, tensor_subslice<T, D, I> ...a
 ) -> tensor<decltype(op(*a.get_ptr()...)), constexpr_max(I...)> {
     using R = decltype(op(*a.get_ptr()...));
-    constexpr size_t M = constexpr_max(I...);
 
-    tensor<R, M> result(common_shape(a...));
-    element_wise_apply([&](T &...vals, R &res) {
+    return element_wise_calc_reduce<decltype(op(*a.get_ptr()...)), 0>([&op](R &res, T &...vals) {
         res = op(vals...);
-    }, a..., result);
-    return result;
+    }, a...);
 };
 
 
@@ -263,7 +281,7 @@ public:
         return to_shape_impl<K, const T>(shape);
     };
 
-    tensor_subslice& operator=(const tensor_subslice &other) {
+    tensor_subslice &operator=(const tensor_subslice &other) {
         return operator=<T, D, I>(other);
     }
 
@@ -610,19 +628,19 @@ public:
     >::value_type;
 
 private:
-    value_type *arrow(REQUEST(I == 0)) {
+    value_type *arrow(REQUEST_ARG(I == 0)) {
         return tensor_subslice<T, D, I>::_ptr;
     }
 
-    value_type *arrow(REQUEST(I > 0)) {
+    value_type *arrow(REQUEST_ARG(I > 0)) {
         return static_cast<value_type*>(this);
     }
 
-    const value_type *arrow(REQUEST(I == 0)) const {
+    const value_type *arrow(REQUEST_ARG(I == 0)) const {
         return tensor_subslice<T, D, I>::_ptr;
     }
 
-    const value_type *arrow(REQUEST(I > 0)) const {
+    const value_type *arrow(REQUEST_ARG(I > 0)) const {
         return static_cast<const value_type*>(this);
     }
 

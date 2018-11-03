@@ -33,6 +33,28 @@ template<typename T, size_t D> class tensor_slice;
 template<typename T, size_t D, size_t I> class tensor_subslice;
 
 
+template<
+    typename ...T, size_t ...D, size_t ...I
+> array<size_t, constexpr_max(I...)> common_shape (tensor_subslice<T, D, I> ...a) {
+    constexpr size_t M = constexpr_max(I...);
+    array<size_t, M> shape;
+    for (size_t i = 0; i < M; ++i) {
+        shape[i] = size_t(-1);
+        for (size_t val : {(i < M - I ? size_t(-1) : a._slice->shape[D - M + i])...}) {
+            if (shape[i] == size_t(-1)) {
+                shape[i] = val;
+            } else {
+                if (val != size_t(-1)) {
+                    assert(shape[i] == val);
+                }
+            }
+        }
+        assert(shape[i] != size_t(-1));
+    }
+    return shape;
+};
+
+
 template<typename OP, typename ...T> struct element_wise_apply_impl;
 
 template<
@@ -47,23 +69,9 @@ template<
 
     array<size_t, M> shape;
 
-    explicit element_wise_apply_impl(const tensor_slice<T, D> *...slice_, const OP &op_) :
-        slice(slice_...), op(op_)
-    {
-        for (size_t i = 0; i < M; ++i) {
-            shape[i] = size_t(-1);
-            for (size_t val : {(i < I ? slice_->shape[D - 1 - i] : size_t(-1))...}) {
-                if (shape[i] == size_t(-1)) {
-                    shape[i] = val;
-                } else {
-                    if (val != size_t(-1)) {
-                        assert(shape[i] == val);
-                    }
-                }
-            }
-            assert(shape[i] != size_t(-1));
-        }
-    }
+    explicit element_wise_apply_impl(tensor_subslice<T, D, I> ...a, const OP &op_) :
+        slice(a._slice...), op(op_), shape(common_shape(a...))
+    {}
 
     template<size_t R> void inc() {};
 
@@ -102,7 +110,7 @@ template<
 template<typename OP, typename ...T, size_t ...D, size_t ...I> void element_wise_apply (
     const OP &op, tensor_subslice<T, D, I> ...a
 ) {
-    element_wise_apply_impl<OP, tensor_subslice<T, D, I>...>(a._slice..., op)(a.get_ptr()...);
+    element_wise_apply_impl<OP, tensor_subslice<T, D, I>...>(a..., op)(a.get_ptr()...);
 };
 
 template<typename OP, typename ...T, size_t ...D, size_t ...I> auto element_wise_calc (
@@ -111,23 +119,7 @@ template<typename OP, typename ...T, size_t ...D, size_t ...I> auto element_wise
     using R = decltype(op(*a.get_ptr()...));
     constexpr size_t M = constexpr_max(I...);
 
-    array<size_t, M> shape;
-    for (size_t i = 0; i < M; ++i) {
-        shape[i] = size_t(-1);
-        for (size_t val : {(i < I ? a._slice->shape[D - 1 - i] : size_t(-1))...}) {
-            if (shape[i] == size_t(-1)) {
-                shape[i] = val;
-            } else {
-                if (val != size_t(-1)) {
-                    assert(shape[i] == val);
-                }
-            }
-        }
-        assert(shape[i] != size_t(-1));
-    }
-
-
-    tensor<R, M> result(shape);
+    tensor<R, M> result(common_shape(a...));
     element_wise_apply([&](T &...vals, R &res) {
         res = op(vals...);
     }, a..., result);
@@ -226,6 +218,26 @@ private:
         return tensor_slice<R, K>(shape, step, ptr);
     };
 
+    template<size_t K, typename R> tensor_slice<R, K> to_shape_impl(const array<size_t, K> &shape) {
+        assert(K > I);
+        for (size_t i = 0; i < I; ++i) {
+            assert(_slice->shape[D - I + i] == shape[K - I + i]);
+        }
+
+        array<size_t, I> shift;
+        shift.fill(0);
+
+        array<dimension_slice, K> order;
+        for (size_t i = 0; i < K - I; ++i) {
+            order[i] = {0, 0, shape[i]};
+        }
+        for (size_t i = 0; i < I; ++i) {
+            order[K - I + i] = {i};
+        }
+
+        return slice_impl<K, R>(shift, order);
+    };
+
 public:
     template<size_t K> tensor_slice<T, K> slice(
         const array<size_t, I> shift, const array<dimension_slice, K> &order
@@ -237,6 +249,14 @@ public:
         const array<size_t, I> shift, const array<dimension_slice, K> &order
     ) const {
         return slice_impl<K, const T>(shift, order);
+    };
+
+    template<size_t K> tensor_slice<T, K> to_shape(const array<size_t, K> &shape) {
+        return to_shape_impl<K, T>(shape);
+    };
+
+    template<size_t K> tensor_slice<const T, K> to_shape(const array<size_t, K> &shape) const {
+        return to_shape_impl<K, const T>(shape);
     };
 
     tensor_subslice& operator=(const tensor_subslice &other) {
@@ -570,7 +590,9 @@ template<typename T, size_t D, size_t I> class tensor_iterator :
 protected:
     size_t _index;
 
-    friend tensor_subslice<T, D, I - 1>;
+    template<
+        typename OTHER_T, size_t OTHER_D, size_t OTHER_I
+    > friend class tensor_subslice;
 
     tensor_iterator(const tensor_slice<T, D> *slice, T *ptr, size_t index = 0) :
         tensor_subslice<T, D, I>(slice, ptr),

@@ -90,7 +90,7 @@ template<
 
     template<size_t R> void inc() {};
 
-    template<size_t R, typename Q, typename ...P> void inc(Q *q, P *...ptr) {
+    template<size_t R, typename Q, typename ...P> void inc(Q *&q, P *&...ptr) {
         constexpr size_t i = sizeof...(T) - 1 - sizeof...(P);
         if (R <= std::get<i>(Is)) {
             q += std::get<i>(slice)->step[std::get<i>(Ds) - R];
@@ -103,7 +103,7 @@ template<
     };
 
     template<size_t R, typename ...P> REQUEST_RET(R > 0, void) rec(P *...ptr) {
-        for (size_t i = 0; i < shape[R - 1]; ++i) {
+        for (size_t i = 0; i < shape[M - R]; ++i) {
             rec<R - 1, P...>(ptr...);
             inc<R, P...>(ptr...);
         }

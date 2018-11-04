@@ -33,8 +33,19 @@ void test2() {
     assert((to_str(a) == "{{{1, 2, 3}}, {{4, 5, 6}}}"));
 }
 
+void test3() {
+    tensor<int, 3> a({2, 1, 3});
+    int k = 0;
+    element_wise_apply([&k] (int &x) {
+        x = ++k;
+    }, a);
+    assert((a.shape == std::array<size_t, 3>{2, 1, 3}));
+    assert((to_str(a) == "{{{1, 2, 3}}, {{4, 5, 6}}}"));
+}
+
 int main () {
     test1();
     test2();
+    test3();
     return 0;
 }

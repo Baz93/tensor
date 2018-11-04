@@ -789,6 +789,10 @@ public:
         std::vector<T>(n, val)
     {}
 
+    tensor_container(std::initializer_list<T> a) :
+        std::vector<T>(a)
+    {}
+
     T *data() {
         return std::vector<T>::data();
     }
@@ -799,6 +803,10 @@ template<> class tensor_container<bool> : private std::vector<char> {
 public:
     tensor_container(size_t n, const bool &val) :
         std::vector<char>(n, val)
+    {}
+
+    tensor_container(std::initializer_list<bool> a) :
+        std::vector<char>(a.begin(), a.end())
     {}
 
     bool *data() {
@@ -815,6 +823,13 @@ public:
     explicit tensor(const std::array<size_t, D> &shape_, const T &value = T()) :
         tensor_slice<T, D>(shape_, default_step(shape_)),
         _data(product(shape_), value)
+    {
+        tensor_slice<T, D>::_ptr = _data.data();
+    }
+
+    tensor (const std::array<size_t, D> &shape_, std::initializer_list<T> l) :
+        tensor_slice<T, D>(shape_, default_step(shape_)),
+        _data(l)
     {
         tensor_slice<T, D>::_ptr = _data.data();
     }

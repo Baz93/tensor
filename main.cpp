@@ -57,11 +57,23 @@ void test5() {
     assert((to_str(a) == "{{{2, 4, 6}}, {{5, 7, 9}}}"));
 }
 
+void test6() {
+    tensor<int, 3> a({2, 1, 5}, {0, 1, 2, 3, 4, 5, 6, 7, 8, 9});
+    auto slice = a.slice<3>({1, 0, 2}, {
+        slice_step{{{0, -1}, {2, 1}}, 2},
+        slice_step{{{2, -2}}, 2},
+        slice_step{{{2, 1}}, 2}
+    });
+    assert((slice.shape == std::array<size_t, 3>{2, 2, 2}));
+    assert((to_str(slice) == "{{{7, 8}, {5, 6}}, {{3, 4}, {1, 2}}}"));
+}
+
 int main () {
     test1();
     test2();
     test3();
     test4();
     test5();
+    test6();
     return 0;
 }

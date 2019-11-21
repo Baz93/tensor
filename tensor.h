@@ -889,6 +889,51 @@ template<size_t D> size_t product(const std::array<size_t, D> &sizes) {
 }
 
 
+template<size_t D> struct scan_sizes_impl {
+    template<typename A> static void process(size_t *pos, const A &a) {
+        *pos = a.size();
+        for (const auto &b : a) {
+            scan_sizes_impl<D - 1>::process(pos + 1, b);
+            break;
+        }
+    }
+};
+
+template<> struct scan_sizes_impl<0> {
+    template<typename A> static void process(size_t *pos, const A &a) {
+        UNUSED(pos);
+        UNUSED(a);
+    }
+};
+
+template<size_t D, typename A> std::array<size_t, D> scan_sizes(const A &a) {
+    std::array<size_t, D> result;
+    scan_sizes_impl<D>::process(result.data(), a);
+    return result;
+}
+
+
+template<typename T, size_t D> struct planarize_impl {
+    template<typename A> static void process(std::vector<T> &result, const A &a) {
+        for (const auto &b : a) {
+            planarize_impl<T, D - 1>::process(result, b);
+        }
+    }
+};
+
+template<typename T> struct planarize_impl<T, 0> {
+    template<typename A> static void process(std::vector<T> &result, const A &a) {
+        result.push_back(a);
+    }
+};
+
+template<typename T, size_t D, typename A> std::vector<T> planarize(const A &a) {
+    std::vector<T> result;
+    planarize_impl<T, D>::process(result, a);
+    return result;
+}
+
+
 template<typename T> class tensor_container : private std::vector<T> {
 public:
     tensor_container(size_t n, const T &val) :
@@ -897,6 +942,10 @@ public:
 
     tensor_container(std::initializer_list<T> a) :
         std::vector<T>(a)
+    {}
+
+    explicit tensor_container(std::vector<T> &&a) :
+        std::vector<T>(std::move(a))
     {}
 
     T* data() {
@@ -912,6 +961,10 @@ public:
     {}
 
     tensor_container(std::initializer_list<bool> a) :
+        std::vector<char>(a.begin(), a.end())
+    {}
+
+    explicit tensor_container(std::vector<bool> &&a) :
         std::vector<char>(a.begin(), a.end())
     {}
 
@@ -943,9 +996,16 @@ public:
         tensor_slice<T, D>::_ptr = _data.data();
     }
 
-    tensor (const std::array<size_t, D> &sizes_, std::initializer_list<T> l) :
+    tensor(const std::array<size_t, D> &sizes_, const std::initializer_list<T> &l) :
         tensor_slice<T, D>(default_shape(sizes_)),
         _data(l)
+    {
+        tensor_slice<T, D>::_ptr = _data.data();
+    }
+
+    template<typename A> tensor(const std::vector<A> &l) :
+        tensor_slice<T, D>(default_shape(scan_sizes<D>(l))),
+        _data(planarize<T, D>(l))
     {
         tensor_slice<T, D>::_ptr = _data.data();
     }
@@ -971,7 +1031,7 @@ private:
 
 public:
     explicit scalar(const T &value = T()) :
-        tensor_slice<T, 0>({}, {}, &_data),
+        tensor_slice<T, 0>({}, &_data),
         _data(value)
     {}
 };

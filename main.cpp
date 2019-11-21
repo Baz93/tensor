@@ -1,4 +1,5 @@
 #include "tensor.h"
+#include "gtest/gtest.h"
 
 #include<bits/stdc++.h>
 using namespace std;
@@ -21,59 +22,42 @@ template<typename T, size_t D> std::string to_str(tensor_subslice<T, D> a, REQUE
     return res;
 }
 
-void test1() {
-    tensor<int, 3> a({2, 1, 3});
-    assert((a.sizes() == std::array<size_t, 3>{2, 1, 3}));
-    assert((to_str(a) == "{{{0, 0, 0}}, {{0, 0, 0}}}"));
+TEST(Tensor, Constructor) {
+    {
+        tensor<int, 3> a({2, 1, 3});
+        ASSERT_EQ(to_str(a), "{{{0, 0, 0}}, {{0, 0, 0}}}");
+    }
+    {
+        tensor<int, 3> a({2, 1, 3}, {1, 2, 3, 4, 5, 6});
+        ASSERT_EQ(to_str(a), "{{{1, 2, 3}}, {{4, 5, 6}}}");
+    }
+    {
+        tensor<int, 3> a(std::vector<std::vector<std::vector<int>>>({{{1, 2, 3}}, {{4, 5, 6}}}));
+        ASSERT_EQ(to_str(a), "{{{1, 2, 3}}, {{4, 5, 6}}}");
+    }
 }
 
-void test2() {
-    tensor<int, 3> a({2, 1, 3}, {1, 2, 3, 4, 5, 6});
-    assert((a.sizes() == std::array<size_t, 3>{2, 1, 3}));
-    assert((to_str(a) == "{{{1, 2, 3}}, {{4, 5, 6}}}"));
-}
-
-void test3() {
-    tensor<int, 3> a({2, 1, 3});
-    int k = 0;
-    element_wise_apply([&k] (int &x) {
-        x = ++k;
-    }, a);
-    assert((a.sizes() == std::array<size_t, 3>{2, 1, 3}));
-    assert((to_str(a) == "{{{1, 2, 3}}, {{4, 5, 6}}}"));
-}
-
-void test4() {
-    tensor<int, 3> a({2, 1, 3}, {1, 2, 3, 4, 5, 6});
-    a += a;
-    assert((a.sizes() == std::array<size_t, 3>{2, 1, 3}));
-    assert((to_str(a) == "{{{2, 4, 6}}, {{8, 10, 12}}}"));
-}
-
-void test5() {
-    tensor<int, 3> a({2, 1, 3}, {1, 2, 3, 4, 5, 6});
-    a = a + a[0];
-    assert((a.sizes() == std::array<size_t, 3>{2, 1, 3}));
-    assert((to_str(a) == "{{{2, 4, 6}}, {{5, 7, 9}}}"));
-}
-
-void test6() {
-    tensor<int, 3> a({2, 1, 5}, {0, 1, 2, 3, 4, 5, 6, 7, 8, 9});
-    auto slice = a.slice<3>({1, 0, 2}, {
-        slice_step{{{0, -1}, {2, 1}}, 2},
-        slice_step{{{2, -2}}, 2},
-        slice_step{{{2, 1}}, 2}
-    });
-    assert((slice.sizes() == std::array<size_t, 3>{2, 2, 2}));
-    assert((to_str(slice) == "{{{7, 8}, {5, 6}}, {{3, 4}, {1, 2}}}"));
-}
-
-int main () {
-    test1();
-    test2();
-    test3();
-    test4();
-    test5();
-    test6();
-    return 0;
+TEST(Tensor, Sum) {
+    {
+        scalar<int> a(1);
+        tensor<int, 1> b(std::vector<int>({1, 2}));
+        tensor<int, 2> c(std::vector<std::vector<int>>({{1, 2}, {3, 4}}));
+        tensor<int, 3> d(std::vector<std::vector<std::vector<int>>>({{{1, 2}, {3, 4}}, {{5, 6}, {7, 8}}}));
+        ASSERT_EQ(to_str(a + a), "2");
+        ASSERT_EQ(to_str(a + b), "{2, 3}");
+        ASSERT_EQ(to_str(a + c), "{{2, 3}, {4, 5}}");
+        ASSERT_EQ(to_str(a + d), "{{{2, 3}, {4, 5}}, {{6, 7}, {8, 9}}}");
+        ASSERT_EQ(to_str(b + a), "{2, 3}");
+        ASSERT_EQ(to_str(b + b), "{2, 4}");
+        ASSERT_EQ(to_str(b + c), "{{2, 4}, {4, 6}}");
+        ASSERT_EQ(to_str(b + d), "{{{2, 4}, {4, 6}}, {{6, 8}, {8, 10}}}");
+        ASSERT_EQ(to_str(c + a), "{{2, 3}, {4, 5}}");
+        ASSERT_EQ(to_str(c + b), "{{2, 4}, {4, 6}}");
+        ASSERT_EQ(to_str(c + c), "{{2, 4}, {6, 8}}");
+        ASSERT_EQ(to_str(c + d), "{{{2, 4}, {6, 8}}, {{6, 8}, {10, 12}}}");
+        ASSERT_EQ(to_str(d + a), "{{{2, 3}, {4, 5}}, {{6, 7}, {8, 9}}}");
+        ASSERT_EQ(to_str(d + b), "{{{2, 4}, {4, 6}}, {{6, 8}, {8, 10}}}");
+        ASSERT_EQ(to_str(d + c), "{{{2, 4}, {6, 8}}, {{6, 8}, {10, 12}}}");
+        ASSERT_EQ(to_str(d + d), "{{{2, 4}, {6, 8}}, {{10, 12}, {14, 16}}}");
+    }
 }

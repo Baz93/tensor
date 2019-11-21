@@ -93,12 +93,20 @@ template<typename OP, size_t D, size_t I, typename ...T> struct element_wise_app
     }
 };
 
+template<typename OP, typename ...T, size_t ...D> void element_wise_slice_apply (
+    const OP &op, const tensor_slice<T, D> &...a
+) {
+    constexpr size_t M = constexpr_max(D...);
+    std::array<size_t, M> shape = common_shape(a...);
+    element_wise_apply_impl<OP, M, M, T...>::apply(shape, op, a...);
+}
+
 template<typename OP, typename ...T, size_t ...D, size_t ...I> void element_wise_apply (
     const OP &op, const tensor_subslice<T, D, I> &...a
 ) {
     constexpr size_t M = constexpr_max(I...);
     std::array<size_t, M> shape = common_shape(a...);
-    element_wise_apply_impl<OP, M, M, T...>::apply(shape, op, a...);
+    element_wise_slice_apply(op, (a.template expand<M - I, 0>(shape))...);
 }
 
 template<
@@ -109,8 +117,8 @@ template<
     constexpr size_t M = constexpr_max(I...);
     std::array<size_t, M> shape = common_shape(a...);
     tensor<R, M - K> result(common_shape<K>(a...));
-    element_wise_apply_impl<OP, M, M, R, T...>::apply(
-        shape, op, result.template expand<0, K>(shape), (a.template expand<M - I, 0>(shape))...
+    element_wise_slice_apply(
+        op, result.template expand<0, K>(shape), (a.template expand<M - I, 0>(shape))...
     );
     return result;
 }
@@ -292,7 +300,7 @@ private:
 
     template<size_t LK, size_t RK, typename R> tensor_slice<R, LK + I + RK> expand_impl(
         const std::array<size_t, LK + I + RK> &new_shape
-    ) {
+    ) const {
         std::array<size_t, I> shift;
         shift.fill(0);
 

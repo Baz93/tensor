@@ -8,7 +8,7 @@
 
 #define UNUSED(x) (void)(x)
 #define REQUEST_ARG(x) char(*)[bool(x)] = 0
-#define REQUEST_RET(x,...) typename std::enable_if<bool(x), __VA_ARGS__>::type
+#define REQUEST_TPL(x) typename = std::enable_if_t<bool(x)>
 
 
 template<typename T> constexpr T constexpr_max(T x) {
@@ -51,8 +51,8 @@ template<typename T, size_t D> class tensor_subslice;
 
 
 template<
-    size_t K = 0, typename ...T, size_t ...D
-> REQUEST_RET(constexpr_max(D...) >= K, std::array<size_t, constexpr_max(D...) - K>) common_shape(
+    size_t K = 0, typename ...T, size_t ...D, REQUEST_TPL(constexpr_max(D...) >= K)
+> std::array<size_t, constexpr_max(D...) - K> common_shape(
     tensor_subslice<T, D> ...a
 ) {
     constexpr size_t M = constexpr_max(D...);
@@ -113,10 +113,10 @@ template<typename OP, typename ...T> void element_wise_apply (
 }
 
 template<
-    typename R, size_t K = 0, typename OP, typename ...T, size_t ...D
+    typename R, size_t K = 0, typename OP, typename ...T, size_t ...D, REQUEST_TPL(constexpr_max(D...) >= K)
 > auto element_wise_calc_reduce_impl(
     const OP &op, tensor_subslice<T, D> ...a
-) -> REQUEST_RET(constexpr_max(D...) >= K, tensor<R, constexpr_max(D...) - K>) {
+) {
     constexpr size_t M = constexpr_max(D...);
     std::array<size_t, M> shape = common_shape(a...);
     tensor<R, M - K> result(common_shape<K>(a...));
@@ -136,10 +136,10 @@ template<
 
 template<typename OP, typename ...T, size_t ...D> auto element_wise_calc_impl(
     const OP &op, tensor_subslice<T, D> ...a
-) -> tensor<decltype(op(*a.ptr()...)), constexpr_max(D...)> {
-    using R = decltype(op(*a.ptr()...));
+) {
+    using R = decltype(op(std::declval<T>()...));
 
-    return element_wise_calc_reduce_impl<decltype(op(*a.ptr()...))>([&op](R &res, T &...vals) {
+    return element_wise_calc_reduce_impl<R>([&op](R &res, T &...vals) {
         res = op(vals...);
     }, a...);
 }
@@ -176,14 +176,6 @@ public:
         return tensor_subslice<const T, D>(_shape, _ptr);
     }
 
-    const T* ptr() const {
-        return _ptr;
-    }
-
-    T* ptr() {
-        return _ptr;
-    }
-
     std::array<size_t, D> sizes() const {
         std::array<size_t, D> res;
         for (size_t i = 0 ; i < D; ++i) {
@@ -200,23 +192,15 @@ protected:
     size_t step(size_t i) const {
         return _shape[i].step;
     }
-
-    const size_and_step* shape() const {
-        return _shape;
-    }
 };
 
 
 template<typename T, size_t D> class tensor_subslice_iterable : public tensor_subslice_base<T, D> {
 protected:
     using tensor_subslice_base<T, D>::_ptr;
+    using tensor_subslice_base<T, D>::_shape;
 public:
-    using tensor_subslice_base<T, D>::forward;
-    using tensor_subslice_base<T, D>::ptr;
     using tensor_subslice_base<T, D>::size;
-protected:
-    using tensor_subslice_base<T, D>::step;
-    using tensor_subslice_base<T, D>::shape;
 
 public:
     using iterator = tensor_iterator<T, D - 1>;
@@ -227,7 +211,7 @@ public:
     {}
 
     iterator begin() {
-        return iterator(shape() + 1, ptr());
+        return iterator(_shape + 1, _ptr);
     }
 
     iterator end() {
@@ -235,7 +219,7 @@ public:
     }
 
     const_iterator begin() const {
-        return const_iterator(shape() + 1, ptr());
+        return const_iterator(_shape + 1, _ptr);
     }
 
     const_iterator end() const {
@@ -255,13 +239,6 @@ public:
 template<typename T> class tensor_subslice_iterable<T, 0> : public tensor_subslice_base<T, 0> {
 protected:
     using tensor_subslice_base<T, 0>::_ptr;
-public:
-    using tensor_subslice_base<T, 0>::forward;
-    using tensor_subslice_base<T, 0>::ptr;
-    using tensor_subslice_base<T, 0>::size;
-protected:
-    using tensor_subslice_base<T, 0>::step;
-    using tensor_subslice_base<T, 0>::shape;
 
 public:
     tensor_subslice_iterable(const size_and_step *shape_, T *ptr_) :
@@ -280,14 +257,11 @@ public:
 
 template<typename T, size_t D> class tensor_subslice : public tensor_subslice_iterable<T, D> {
 protected:
-    using tensor_subslice_iterable<T, D>::_ptr;
+    using tensor_subslice_base<T, D>::_ptr;
 public:
-    using tensor_subslice_iterable<T, D>::forward;
-    using tensor_subslice_iterable<T, D>::ptr;
-    using tensor_subslice_iterable<T, D>::size;
+    using tensor_subslice_base<T, D>::size;
 protected:
-    using tensor_subslice_iterable<T, D>::step;
-    using tensor_subslice_iterable<T, D>::shape;
+    using tensor_subslice_base<T, D>::step;
 
 public:
     tensor_subslice(const size_and_step *shape_, T *ptr_) :
@@ -485,7 +459,7 @@ template<
     typename T1, size_t D1, typename T2, size_t D2
 > auto operator+(
     const tensor_subslice<T1, D1> &lhs, const tensor_subslice<T2, D2> &rhs
-) -> tensor<decltype(*lhs.ptr() + *rhs.ptr()), constexpr_max(D1, D2)> {
+) {
     return element_wise_calc([](const T1 &v1, const T1 &v2) {
         return v1 + v2;
     }, lhs, rhs);
@@ -495,7 +469,7 @@ template<
     typename T1, size_t D1, typename T2, size_t D2
 > auto operator-(
     const tensor_subslice<T1, D1> &lhs, const tensor_subslice<T2, D2> &rhs
-) -> tensor<decltype(*lhs.ptr() - *rhs.ptr()), constexpr_max(D1, D2)> {
+) {
     return element_wise_calc([](const T1 &v1, const T1 &v2) {
         return v1 - v2;
     }, lhs, rhs);
@@ -503,7 +477,7 @@ template<
 
 template<typename T, size_t D> auto operator+(
     const tensor_subslice<T, D> &val
-) -> tensor<decltype(+*val.ptr()), D> {
+) {
     return element_wise_calc([](const T &v) {
         return +v;
     }, val);
@@ -511,7 +485,7 @@ template<typename T, size_t D> auto operator+(
 
 template<typename T, size_t D> auto operator-(
     const tensor_subslice<T, D> &val
-) -> tensor<decltype(-*val.ptr()), D> {
+) {
     return element_wise_calc([](const T &v) {
         return -v;
     }, val);
@@ -521,7 +495,7 @@ template<
     typename T1, size_t D1, typename T2, size_t D2
 > auto operator*(
     const tensor_subslice<T1, D1> &lhs, const tensor_subslice<T2, D2> &rhs
-) -> tensor<decltype(*lhs.ptr() * *rhs.ptr()), constexpr_max(D1, D2)> {
+) {
     return element_wise_calc([](const T1 &v1, const T1 &v2) {
         return v1 * v2;
     }, lhs, rhs);
@@ -531,7 +505,7 @@ template<
     typename T1, size_t D1, typename T2, size_t D2
 > auto operator/(
     const tensor_subslice<T1, D1> &lhs, const tensor_subslice<T2, D2> &rhs
-) -> tensor<decltype(*lhs.ptr() / *rhs.ptr()), constexpr_max(D1, D2)> {
+) {
     return element_wise_calc([](const T1 &v1, const T1 &v2) {
         return v1 / v2;
     }, lhs, rhs);
@@ -541,7 +515,7 @@ template<
     typename T1, size_t D1, typename T2, size_t D2
 > auto operator%(
     const tensor_subslice<T1, D1> &lhs, const tensor_subslice<T2, D2> &rhs
-) -> tensor<decltype(*lhs.ptr() % *rhs.ptr()), constexpr_max(D1, D2)> {
+) {
     return element_wise_calc([](const T1 &v1, const T1 &v2) {
         return v1 % v2;
     }, lhs, rhs);
@@ -551,7 +525,7 @@ template<
     typename T1, size_t D1, typename T2, size_t D2
 > auto operator==(
     const tensor_subslice<T1, D1> &lhs, const tensor_subslice<T2, D2> &rhs
-) -> tensor<decltype(*lhs.ptr() == *rhs.ptr()), constexpr_max(D1, D2)> {
+) {
     return element_wise_calc([](const T1 &v1, const T1 &v2) {
         return v1 == v2;
     }, lhs, rhs);
@@ -561,7 +535,7 @@ template<
     typename T1, size_t D1, typename T2, size_t D2
 > auto operator!=(
     const tensor_subslice<T1, D1> &lhs, const tensor_subslice<T2, D2> &rhs
-) -> tensor<decltype(*lhs.ptr() != *rhs.ptr()), constexpr_max(D1, D2)> {
+) {
     return element_wise_calc([](const T1 &v1, const T1 &v2) {
         return v1 != v2;
     }, lhs, rhs);
@@ -571,7 +545,7 @@ template<
     typename T1, size_t D1, typename T2, size_t D2
 > auto operator>(
     const tensor_subslice<T1, D1> &lhs, const tensor_subslice<T2, D2> &rhs
-) -> tensor<decltype(*lhs.ptr() > *rhs.ptr()), constexpr_max(D1, D2)> {
+) {
     return element_wise_calc([](const T1 &v1, const T1 &v2) {
         return v1 > v2;
     }, lhs, rhs);
@@ -581,7 +555,7 @@ template<
     typename T1, size_t D1, typename T2, size_t D2
 > auto operator<(
     const tensor_subslice<T1, D1> &lhs, const tensor_subslice<T2, D2> &rhs
-) -> tensor<decltype(*lhs.ptr() < *rhs.ptr()), constexpr_max(D1, D2)> {
+) {
     return element_wise_calc([](const T1 &v1, const T1 &v2) {
         return v1 < v2;
     }, lhs, rhs);
@@ -591,7 +565,7 @@ template<
     typename T1, size_t D1, typename T2, size_t D2
 > auto operator>=(
     const tensor_subslice<T1, D1> &lhs, const tensor_subslice<T2, D2> &rhs
-) -> tensor<decltype(*lhs.ptr() >= *rhs.ptr()), constexpr_max(D1, D2)> {
+) {
     return element_wise_calc([](const T1 &v1, const T1 &v2) {
         return v1 >= v2;
     }, lhs, rhs);
@@ -601,7 +575,7 @@ template<
     typename T1, size_t D1, typename T2, size_t D2
 > auto operator<=(
     const tensor_subslice<T1, D1> &lhs, const tensor_subslice<T2, D2> &rhs
-) -> tensor<decltype(*lhs.ptr() <= *rhs.ptr()), constexpr_max(D1, D2)> {
+) {
     return element_wise_calc([](const T1 &v1, const T1 &v2) {
         return v1 <= v2;
     }, lhs, rhs);
@@ -609,7 +583,7 @@ template<
 
 template<typename T, size_t D> auto operator!(
     const tensor_subslice<T, D> &val
-) -> tensor<decltype(!*val.ptr()), D> {
+) {
     return element_wise_calc([](const T &v) {
         return !v;
     }, val);
@@ -619,7 +593,7 @@ template<
     typename T1, size_t D1, typename T2, size_t D2
 > auto operator&&(
     const tensor_subslice<T1, D1> &lhs, const tensor_subslice<T2, D2> &rhs
-) -> tensor<decltype(*lhs.ptr() && *rhs.ptr()), constexpr_max(D1, D2)> {
+) {
     return element_wise_calc([](const T1 &v1, const T1 &v2) {
         return v1 && v2;
     }, lhs, rhs);
@@ -629,7 +603,7 @@ template<
     typename T1, size_t D1, typename T2, size_t D2
 > auto operator||(
     const tensor_subslice<T1, D1> &lhs, const tensor_subslice<T2, D2> &rhs
-) -> tensor<decltype(*lhs.ptr() || *rhs.ptr()), constexpr_max(D1, D2)> {
+) {
     return element_wise_calc([](const T1 &v1, const T1 &v2) {
         return v1 || v2;
     }, lhs, rhs);
@@ -637,7 +611,7 @@ template<
 
 template<typename T, size_t D> auto operator~(
     const tensor_subslice<T, D> &val
-) -> tensor<decltype(~*val.ptr()), D> {
+) {
     return element_wise_calc([](const T &v) {
         return ~v;
     }, val);
@@ -647,7 +621,7 @@ template<
     typename T1, size_t D1, typename T2, size_t D2
 > auto operator&(
     const tensor_subslice<T1, D1> &lhs, const tensor_subslice<T2, D2> &rhs
-) -> tensor<decltype(*lhs.ptr() & *rhs.ptr()), constexpr_max(D1, D2)> {
+) {
     return element_wise_calc([](const T1 &v1, const T1 &v2) {
         return v1 & v2;
     }, lhs, rhs);
@@ -657,7 +631,7 @@ template<
     typename T1, size_t D1, typename T2, size_t D2
 > auto operator|(
     const tensor_subslice<T1, D1> &lhs, const tensor_subslice<T2, D2> &rhs
-) -> tensor<decltype(*lhs.ptr() | *rhs.ptr()), constexpr_max(D1, D2)> {
+) {
     return element_wise_calc([](const T1 &v1, const T1 &v2) {
         return v1 | v2;
     }, lhs, rhs);
@@ -667,7 +641,7 @@ template<
     typename T1, size_t D1, typename T2, size_t D2
 > auto operator^(
     const tensor_subslice<T1, D1> &lhs, const tensor_subslice<T2, D2> &rhs
-) -> tensor<decltype(*lhs.ptr() ^ *rhs.ptr()), constexpr_max(D1, D2)> {
+) {
     return element_wise_calc([](const T1 &v1, const T1 &v2) {
         return v1 ^ v2;
     }, lhs, rhs);
@@ -677,7 +651,7 @@ template<
     typename T1, size_t D1, typename T2, size_t D2
 > auto operator<<(
     const tensor_subslice<T1, D1> &lhs, const tensor_subslice<T2, D2> &rhs
-) -> tensor<decltype(*lhs.ptr() << *rhs.ptr()), constexpr_max(D1, D2)> {
+) {
     return element_wise_calc([](const T1 &v1, const T1 &v2) {
         return v1 << v2;
     }, lhs, rhs);
@@ -687,7 +661,7 @@ template<
     typename T1, size_t D1, typename T2, size_t D2
 > auto operator>>(
     const tensor_subslice<T1, D1> &lhs, const tensor_subslice<T2, D2> &rhs
-) -> tensor<decltype(*lhs.ptr() >> *rhs.ptr()), constexpr_max(D1, D2)> {
+) {
     return element_wise_calc([](const T1 &v1, const T1 &v2) {
         return v1 >> v2;
     }, lhs, rhs);
@@ -702,12 +676,7 @@ template<typename T, size_t D> class tensor_iterator :
     >
 {
 protected:
-    using tensor_subslice_base<T, D>::_ptr;
-    using tensor_subslice_base<T, D>::forward;
-    using tensor_subslice_base<T, D>::ptr;
-    using tensor_subslice_base<T, D>::size;
     using tensor_subslice_base<T, D>::step;
-    using tensor_subslice_base<T, D>::shape;
 
     size_t _index;
 
@@ -728,11 +697,11 @@ public:
 
 private:
     value_type* arrow() {
-        return static_cast<value_type *>(this);
+        return static_cast<value_type*>(this);
     }
 
     const value_type* arrow() const {
-        return static_cast<const value_type *>(this);
+        return static_cast<const value_type*>(this);
     }
 
     size_t step() const {
@@ -821,16 +790,6 @@ public:
 
 
 template<typename T, size_t D> class tensor_slice : public tensor_subslice<T, D> {
-protected:
-    using tensor_subslice<T, D>::_ptr;
-public:
-    using tensor_subslice<T, D>::forward;
-    using tensor_subslice<T, D>::ptr;
-    using tensor_subslice<T, D>::size;
-protected:
-    using tensor_subslice<T, D>::step;
-    using tensor_subslice<T, D>::shape;
-
 private:
     const std::array<size_and_step, D> _shape;
 
@@ -976,14 +935,7 @@ public:
 
 template<typename T, size_t D> class tensor : public tensor_slice<T, D> {
 protected:
-    using tensor_subslice<T, D>::_ptr;
-public:
-    using tensor_subslice<T, D>::forward;
-    using tensor_subslice<T, D>::ptr;
-    using tensor_subslice<T, D>::size;
-protected:
-    using tensor_subslice<T, D>::step;
-    using tensor_subslice<T, D>::shape;
+    using tensor_subslice_base<T, D>::_ptr;
 
 private:
     tensor_container<T> _data;

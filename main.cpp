@@ -28,10 +28,6 @@ TEST(Tensor, Constructor) {
         ASSERT_EQ(to_str(a), "{{{0, 0, 0}}, {{0, 0, 0}}}");
     }
     {
-        tensor<int, 3> a({2, 1, 3}, {1, 2, 3, 4, 5, 6});
-        ASSERT_EQ(to_str(a), "{{{1, 2, 3}}, {{4, 5, 6}}}");
-    }
-    {
         tensor<int, 3> a(std::vector<std::vector<std::vector<int>>>({{{1, 2, 3}}, {{4, 5, 6}}}));
         ASSERT_EQ(to_str(a), "{{{1, 2, 3}}, {{4, 5, 6}}}");
     }

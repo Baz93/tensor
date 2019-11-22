@@ -15,8 +15,8 @@ template<typename T, size_t D> class tensor_iterator;
 
 
 template<typename T, size_t D> class tensor_base {
-protected:
-    const size_and_step * _shape;
+private:
+    const size_and_step *const _shape;
     T *_ptr;
 
 public:
@@ -26,6 +26,24 @@ public:
     tensor_base(const size_and_step *shape, T *ptr) :
         _shape(shape), _ptr(ptr)
     {}
+
+protected:
+    const size_and_step* shape() const {
+        return _shape;
+    }
+
+    T* ptr() const {
+        return _ptr;
+    }
+
+private:
+    T*& mutable_ptr() {
+        return _ptr;
+    }
+
+    template<
+        typename OTHER_T, size_t OTHER_D
+    > friend class tensor_iterator;
 
 public:
     tensor_subslice<T, D> forward() {
@@ -57,8 +75,8 @@ protected:
 
 template<typename T, size_t D> class tensor_iterable : public tensor_base<T, D> {
 protected:
-    using tensor_base<T, D>::_ptr;
-    using tensor_base<T, D>::_shape;
+    using tensor_base<T, D>::ptr;
+    using tensor_base<T, D>::shape;
 public:
     using tensor_base<T, D>::size;
 
@@ -71,7 +89,7 @@ public:
     {}
 
     iterator begin() {
-        return iterator(_shape + 1, _ptr);
+        return iterator(shape() + 1, ptr());
     }
 
     iterator end() {
@@ -79,7 +97,7 @@ public:
     }
 
     const_iterator begin() const {
-        return const_iterator(_shape + 1, _ptr);
+        return const_iterator(shape() + 1, ptr());
     }
 
     const_iterator end() const {
@@ -98,7 +116,7 @@ public:
 
 template<typename T> class tensor_iterable<T, 0> : public tensor_base<T, 0> {
 protected:
-    using tensor_base<T, 0>::_ptr;
+    using tensor_base<T, 0>::ptr;
 
 public:
     tensor_iterable(const size_and_step *shape_, T *ptr_) :
@@ -106,10 +124,10 @@ public:
     {}
 
     const T& get() const {
-        return *_ptr;
+        return *ptr();
     }
 
     T& get() {
-        return *_ptr;
+        return *ptr();
     }
 };

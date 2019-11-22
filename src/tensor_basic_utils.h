@@ -6,9 +6,12 @@
 #include <tuple>
 #include <type_traits>
 
-#define UNUSED(x) (void)(x)
-#define REQUEST_ARG(x) char(*)[bool(x)] = 0
-#define REQUEST_TPL(x) typename = std::enable_if_t<bool(x)>
+#define UNUSED(...) (void)(__VA_ARGS__)
+#define REQUEST_ARG(...) char(*)[bool(__VA_ARGS__)] = 0
+#define REQUEST_TPL(...) typename = std::enable_if_t<bool(__VA_ARGS__)>
+
+
+static const size_t npos = size_t(-1);
 
 
 template<typename T> constexpr T constexpr_max(T x) {

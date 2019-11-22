@@ -13,15 +13,15 @@ template<
     constexpr size_t M = constexpr_max(D...);
     std::array<size_t, M - K> shape;
     for (size_t i = 0; i < M; ++i) {
-        size_t res = size_t(-1);
-        for (size_t val : {(i < M - D ? size_t(-1) : a.size(D - M + i))...}) {
-            if (res == size_t(-1)) {
+        size_t res = npos;
+        for (size_t val : {(i < M - D ? npos : a.size(D - M + i))...}) {
+            if (res == npos) {
                 res = val;
             } else {
-                assert(val == size_t(-1) || res == val);
+                assert(val == npos || res == val);
             }
         }
-        assert(res != size_t(-1));
+        assert(res != npos);
         if (i >= K) {
             shape[i] = res;
         }

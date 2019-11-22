@@ -5,21 +5,19 @@
 
 
 struct slice_step {
-    static const size_t NA = size_t(-1);
-
     struct dimension_step {
-        size_t dimension = NA;
+        size_t dimension = npos;
         ptrdiff_t step = 1;
     };
 
     std::vector<dimension_step> steps;
-    size_t size = NA;
+    size_t size = npos;
 };
 
 
 template<typename T, size_t D> class tensor_subslice : public tensor_iterable<T, D> {
 protected:
-    using tensor_base<T, D>::_ptr;
+    using tensor_base<T, D>::ptr;
 public:
     using tensor_base<T, D>::size;
 protected:
@@ -34,7 +32,7 @@ private:
     template<size_t K, typename R> tensor_slice<R, K> slice_impl(
         const std::array<size_t, D> shift, const std::array<slice_step, K> &order
     ) const {
-        R *p = _ptr;
+        R *p = ptr();
         for (size_t i = 0; i < D; ++i) {
             p += shift[i] * step(i);
         }
@@ -43,7 +41,7 @@ private:
         std::array<size_t, D> min_index = shift, max_index = shift;
         for (size_t i = 0; i < K; ++i) {
             new_shape[i].size = order[i].size;
-            if (new_shape[i].size == slice_step::NA) {
+            if (new_shape[i].size == npos) {
                 assert(order[i].steps.size() == 1);
                 new_shape[i].size = size(order[i].steps.back().dimension);
             }

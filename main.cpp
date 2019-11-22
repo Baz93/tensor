@@ -11,22 +11,32 @@ using namespace std;
 #define REQUEST_TPL(...) typename = std::enable_if_t<bool(__VA_ARGS__)>
 
 
-template<typename T, size_t D> std::string to_str(tensor_subslice<T, D> a, REQUEST_ARG(D == 0)) {
-    return to_string(a.get());
+template<typename T, size_t D> ostream& write_impl(ostream &out, tensor_subslice<T, D> a, REQUEST_ARG(D == 0)) {
+    return out << a.get();
 }
 
-template<typename T, size_t D> std::string to_str(tensor_subslice<T, D> a, REQUEST_ARG(D > 0)) {
-    string res = "{";
+template<typename T, size_t D> ostream& write_impl(ostream &out, tensor_subslice<T, D> a, REQUEST_ARG(D > 0)) {
+    out << "{";
     bool first = true;
     for (auto b : a) {
         if (!first) {
-            res += ", ";
+            out << ", ";
         }
         first = false;
-        res += to_str(b);
+        write_impl(out, b);
     }
-    res += "}";
-    return res;
+    out << "}";
+    return out;
+}
+
+template<typename T, size_t D> ostream& operator<<(ostream &out, tensor_subslice<T, D> a) {
+    return write_impl(out, a);
+}
+
+template<typename T, size_t D> std::string to_str(tensor_subslice<T, D> a) {
+    stringstream s;
+    s << a;
+    return s.str();
 }
 
 TEST(Tensor, Constructor) {
@@ -61,6 +71,33 @@ TEST(Tensor, Constructor) {
     {
         tensor<int, 2> a({2, 2});
         ASSERT_EQ(to_str(a), "{{0, 0}, {0, 0}}");
+    }
+    {
+        tensor<std::string, 0> a({}, "abc");
+        ASSERT_EQ(to_str(a), "abc");
+    }
+    {
+        tensor<char, 0> a({}, 'x');
+        ASSERT_EQ(to_str(a), "x");
+    }
+    {
+        tensor<char, 2> a({2, 2}, 'x');
+        ASSERT_EQ(to_str(a), "{{x, x}, {x, x}}");
+    }
+}
+
+TEST(Tensor, MakeTensor) {
+    {
+        auto a = make_tensor<int, 3>({{{1, 2, 3}}, {{4, 5, 6}}});
+        ASSERT_EQ(to_str(a), "{{{1, 2, 3}}, {{4, 5, 6}}}");
+    }
+    {
+        auto a = make_tensor<int, 3>({});
+        ASSERT_EQ(to_str(a), "{}");
+    }
+    {
+        auto a = make_tensor<char, 2>(std::vector<std::string>{"abc", "def"});
+        ASSERT_EQ(to_str(a), "{{a, b, c}, {d, e, f}}");
     }
 }
 

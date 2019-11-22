@@ -77,12 +77,8 @@ TEST(Tensor, Constructor) {
         ASSERT_EQ(to_str(a), "abc");
     }
     {
-        tensor<char, 0> a({}, 'x');
-        ASSERT_EQ(to_str(a), "x");
-    }
-    {
         tensor<char, 2> a({2, 2}, 'x');
-        ASSERT_EQ(to_str(a), "{{x, x}, {x, x}}");
+        ASSERT_EQ(to_str(a), "{{abc, abc}, {abc, abc}}");
     }
 }
 

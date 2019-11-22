@@ -119,6 +119,66 @@ TEST(Tensor, MakeTensor) {
         auto a = make_scalar(true);
         ASSERT_EQ(to_str(a), "1");
     }
+    {
+        const vector<vector<int>> v{{1, 2}, {3, 4}};
+        auto a = make_tensor<vector<int>, 1>(v);
+        ASSERT_EQ(a[0].get(), vector<int>({1, 2}));
+        ASSERT_EQ(v[0], vector<int>({1, 2}));
+        ASSERT_EQ(a[1].get(), vector<int>({3, 4}));
+        ASSERT_EQ(v[1], vector<int>({3, 4}));
+    }
+    {
+        vector<vector<int>> v{{1, 2}, {3, 4}};
+        auto a = make_tensor<vector<int>, 1>(v);
+        ASSERT_EQ(a[0].get(), vector<int>({1, 2}));
+        ASSERT_EQ(v[0], vector<int>({1, 2}));
+        ASSERT_EQ(a[1].get(), vector<int>({3, 4}));
+        ASSERT_EQ(v[1], vector<int>({3, 4}));
+    }
+    {
+        vector<vector<int>> v{{1, 2}, {3, 4}};
+        auto a = make_tensor<vector<int>, 1>(move(v));
+        ASSERT_EQ(a[0].get(), vector<int>({1, 2}));
+        ASSERT_EQ(v[0], vector<int>({}));
+        ASSERT_EQ(a[1].get(), vector<int>({3, 4}));
+        ASSERT_EQ(v[1], vector<int>({}));
+    }
+    {
+        const vector<int> v{1, 2};
+        auto a = make_tensor<vector<int>, 0>(v);
+        ASSERT_EQ(a.get(), vector<int>({1, 2}));
+        ASSERT_EQ(v, vector<int>({1, 2}));
+    }
+    {
+        vector<int> v{1, 2};
+        auto a = make_tensor<vector<int>, 0>(v);
+        ASSERT_EQ(a.get(), vector<int>({1, 2}));
+        ASSERT_EQ(v, vector<int>({1, 2}));
+    }
+    {
+        vector<int> v{1, 2};
+        auto a = make_tensor<vector<int>, 0>(move(v));
+        ASSERT_EQ(a.get(), vector<int>({1, 2}));
+        ASSERT_EQ(v, vector<int>({}));
+    }
+    {
+        const vector<int> v{1, 2};
+        auto a = make_scalar(v);
+        ASSERT_EQ(a.get(), vector<int>({1, 2}));
+        ASSERT_EQ(v, vector<int>({1, 2}));
+    }
+    {
+        vector<int> v{1, 2};
+        auto a = make_scalar(v);
+        ASSERT_EQ(a.get(), vector<int>({1, 2}));
+        ASSERT_EQ(v, vector<int>({1, 2}));
+    }
+    {
+        vector<int> v{1, 2};
+        auto a = make_scalar(move(v));
+        ASSERT_EQ(a.get(), vector<int>({1, 2}));
+        ASSERT_EQ(v, vector<int>({}));
+    }
 }
 
 TEST(Tensor, Sum) {
@@ -143,3 +203,13 @@ TEST(Tensor, Sum) {
     ASSERT_EQ(to_str(d + c), "{{{2, 4}, {6, 8}}, {{6, 8}, {10, 12}}}");
     ASSERT_EQ(to_str(d + d), "{{{2, 4}, {6, 8}}, {{10, 12}, {14, 16}}}");
 }
+
+//TEST(Tensor, Assign) {
+//    auto a = make_scalar(1);
+//    auto b = make_tensor<int, 1>({1, 2});
+//    auto c = make_tensor<int, 2>({{1, 2}, {3, 4}});
+//    auto d = make_tensor<int, 3>({{{1, 2}, {3, 4}}, {{5, 6}, {7, 8}}});
+//    {
+//        auto
+//    }
+//}

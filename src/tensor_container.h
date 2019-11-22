@@ -37,7 +37,7 @@ template<typename T, size_t D> struct sizes_and_values {
     template<typename A> explicit sizes_and_values(A &&a) {
         sizes.fill(_details::npos);
         if (std::is_lvalue_reference<A>::value) {
-            fill<0, const A>(a);
+            fill<0, const std::remove_reference_t<A>>(a);
         } else {
             fill<0>(a);
         }

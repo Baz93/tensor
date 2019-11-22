@@ -35,8 +35,32 @@ TEST(Tensor, Constructor) {
         ASSERT_EQ(to_str(a), "{{{0, 0, 0}}, {{0, 0, 0}}}");
     }
     {
-        auto a = make_tensor<int, 3>({{{1, 2, 3}}, {{4, 5, 6}}});
-        ASSERT_EQ(to_str(a), "{{{1, 2, 3}}, {{4, 5, 6}}}");
+        tensor<int, 3> a({2, 1, 3}, 7);
+        ASSERT_EQ(to_str(a), "{{{7, 7, 7}}, {{7, 7, 7}}}");
+    }
+    {
+        tensor<int, 4> a({3, 0, 2, 0});
+        ASSERT_EQ(to_str(a), "{{}, {}, {}}");
+    }
+    {
+        tensor<int, 0> a({});
+        ASSERT_EQ(to_str(a), "0");
+    }
+    {
+        tensor<int, 1> a({1});
+        ASSERT_EQ(to_str(a), "{0}");
+    }
+    {
+        tensor<int, 1> a({0});
+        ASSERT_EQ(to_str(a), "{}");
+    }
+    {
+        tensor<int, 2> a({1, 1});
+        ASSERT_EQ(to_str(a), "{{0}}");
+    }
+    {
+        tensor<int, 2> a({2, 2});
+        ASSERT_EQ(to_str(a), "{{0, 0}, {0, 0}}");
     }
 }
 

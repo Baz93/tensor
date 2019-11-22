@@ -7,15 +7,15 @@
 namespace tensors {
 namespace _details {
 
-class dummy_argument {
+template<size_t N> class dummy_argument {
 private:
-    friend dummy_argument make_dummy_argument();
+    template<size_t OTHER_N> friend dummy_argument<OTHER_N> make_dummy_argument();
 
     dummy_argument() {}
 };
 
-dummy_argument make_dummy_argument() {
-    return dummy_argument();
+template<size_t N> dummy_argument<N> make_dummy_argument() {
+    return dummy_argument<N>();
 }
 
 }  // namespace _details
@@ -66,26 +66,42 @@ private:
         typename OTHER_T, size_t OTHER_D
     > friend tensor<OTHER_T, OTHER_D> make_tensor(_details::multidimentional_list<OTHER_T, OTHER_D>&&);
 
-    explicit tensor(const std::array<size_t, D> &sizes_, _details::tensor_container<T> &&values) :
+    explicit tensor(_details::dummy_argument<0>,
+        const std::array<size_t, D> &sizes_, _details::tensor_container<T> &&values
+    ) :
         tensor_slice<T, D>(_details::default_shape(sizes_), values.data()),
         _data(std::move(values))
     {}
 
-    explicit tensor(_details::sizes_and_values<T, D> &&x) :
-        tensor{x.sizes, _details::tensor_container<T>(std::move(x.values))}
+    explicit tensor(_details::dummy_argument<1>,
+        _details::sizes_and_values<T, D> &&x
+    ) :
+        tensor{_details::make_dummy_argument<0>(),
+            x.sizes, _details::tensor_container<T>(std::move(x.values))
+        }
     {}
 
-    template<typename A> explicit tensor(_details::dummy_argument, A &&a) :
-        tensor{_details::sizes_and_values<T, D>(std::forward<A>(a))}
+    template<typename A> explicit tensor(_details::dummy_argument<2>,
+        A &&a
+    ) :
+        tensor{_details::make_dummy_argument<1>(),
+            _details::sizes_and_values<T, D>(std::forward<A>(a))
+        }
     {}
 
-    explicit tensor(_details::dummy_argument, _details::multidimentional_list<T, D> &&a) :
-        tensor{_details::sizes_and_values<T, D>(std::move(a))}
+    explicit tensor(_details::dummy_argument<3>,
+        _details::multidimentional_list<T, D> &&a
+    ) :
+        tensor{_details::make_dummy_argument<1>(),
+            _details::sizes_and_values<T, D>(std::move(a))
+        }
     {}
 
 public:
     explicit tensor(const std::array<size_t, D> &sizes_, const T &value = T()) :
-        tensor{sizes_, _details::tensor_container<T>(_details::product(sizes_), value)}
+        tensor{_details::make_dummy_argument<0>(),
+            sizes_, _details::tensor_container<T>(_details::product(sizes_), value)
+        }
     {}
 
     tensor& operator=(const tensor &other) {
@@ -104,11 +120,11 @@ public:
 
 
 template<typename T, size_t D, typename A> tensor<T, D> make_tensor(A &&a) {
-    return tensor(_details::make_dummy_argument(), std::forward<A>(a));
+    return tensor(_details::make_dummy_argument<2>(), std::forward<A>(a));
 }
 
 template<typename T, size_t D> tensor<T, D> make_tensor(_details::multidimentional_list<T, D> &&a) {
-    return tensor(_details::make_dummy_argument(), std::move(a));
+    return tensor(_details::make_dummy_argument<3>(), std::move(a));
 }
 
 template<typename T> tensor<T, 0> make_scalar(const T &a) {

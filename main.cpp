@@ -73,12 +73,20 @@ TEST(Tensor, Constructor) {
         ASSERT_EQ(to_str(a), "{{0, 0}, {0, 0}}");
     }
     {
-        tensor<std::string, 0> a({}, "abc");
+        tensor<string, 0> a({}, "abc");
         ASSERT_EQ(to_str(a), "abc");
     }
     {
-        tensor<char, 2> a({2, 2}, 'x');
+        tensor<string, 2> a({2, 2}, "abc");
         ASSERT_EQ(to_str(a), "{{abc, abc}, {abc, abc}}");
+    }
+    {
+        tensor<bool, 0> a({}, true);
+        ASSERT_EQ(to_str(a), "1");
+    }
+    {
+        tensor<bool, 2> a({2, 2}, true);
+        ASSERT_EQ(to_str(a), "{{1, 1}, {1, 1}}");
     }
 }
 
@@ -94,6 +102,22 @@ TEST(Tensor, MakeTensor) {
     {
         auto a = make_tensor<char, 2>(std::vector<std::string>{"abc", "def"});
         ASSERT_EQ(to_str(a), "{{a, b, c}, {d, e, f}}");
+    }
+    {
+        auto a = make_tensor<string, 0>("abc");
+        ASSERT_EQ(to_str(a), "abc");
+    }
+    {
+        auto a = make_tensor<char, 1>(string("abc"));
+        ASSERT_EQ(to_str(a), "{a, b, c}");
+    }
+    {
+        auto a = make_scalar(string("abc"));
+        ASSERT_EQ(to_str(a), "abc");
+    }
+    {
+        auto a = make_scalar(true);
+        ASSERT_EQ(to_str(a), "1");
     }
 }
 

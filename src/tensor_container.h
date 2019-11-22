@@ -1,7 +1,10 @@
 #pragma once
 
-#include "tensor_basic_utils.h"
+#include "tensor_common.h"
 
+
+namespace tensors {
+namespace _details {
 
 template<typename T> using value_store_type = typename std::conditional<std::is_same<T, bool>::value, char, T>::type;
 
@@ -32,7 +35,7 @@ template<typename T, size_t D> struct sizes_and_values {
     std::vector<value_store_type<T>> values;
 
     template<typename A> explicit sizes_and_values(A &&a) {
-        sizes.fill(npos);
+        sizes.fill(_details::npos);
         if (std::is_lvalue_reference<A>::value) {
             fill<0, const A>(a);
         } else {
@@ -50,7 +53,7 @@ template<typename T, size_t D> struct sizes_and_values {
             fill<I + 1>(b);
             ++size;
         }
-        if (sizes[I] == npos) {
+        if (sizes[I] == _details::npos) {
             sizes[I] = size;
         } else {
             assert(sizes[I] == size);
@@ -92,3 +95,6 @@ public:
         return reinterpret_cast<T*>(std::vector<value_store_type<T>>::data());
     }
 };
+
+}  // namespace _details
+}  // namespace tensors

@@ -4,28 +4,33 @@
 #include "element_wise_operations.h"
 
 
+namespace tensors {
+
 struct slice_step {
     struct dimension_step {
-        size_t dimension = npos;
+        size_t dimension = _details::npos;
         ptrdiff_t step = 1;
     };
 
     std::vector<dimension_step> steps;
-    size_t size = npos;
+    size_t size = _details::npos;
 };
 
 
-template<typename T, size_t D> class tensor_subslice : public tensor_iterable<T, D> {
+template<typename T, size_t D> class tensor_subslice : public _details::tensor_iterable<T, D> {
 protected:
-    using tensor_base<T, D>::ptr;
+    using _details::tensor_base<T, D>::ptr;
 public:
-    using tensor_base<T, D>::size;
+    using _details::tensor_base<T, D>::size;
 protected:
-    using tensor_base<T, D>::step;
+    using _details::tensor_base<T, D>::step;
 
-public:
-    tensor_subslice(const size_and_step *shape_, T *ptr_) :
-        tensor_iterable<T, D>(shape_, ptr_)
+    template<
+        typename OTHER_T, size_t OTHER_D
+    > friend class _details::tensor_base;
+
+    tensor_subslice(const _details::size_and_step *shape_, T *ptr_) :
+        _details::tensor_iterable<T, D>(shape_, ptr_)
     {}
 
 private:
@@ -37,11 +42,11 @@ private:
             p += shift[i] * step(i);
         }
 
-        std::array<size_and_step, K> new_shape;
+        std::array<_details::size_and_step, K> new_shape;
         std::array<size_t, D> min_index = shift, max_index = shift;
         for (size_t i = 0; i < K; ++i) {
             new_shape[i].size = order[i].size;
-            if (new_shape[i].size == npos) {
+            if (new_shape[i].size == _details::npos) {
                 assert(order[i].steps.size() == 1);
                 new_shape[i].size = size(order[i].steps.back().dimension);
             }
@@ -426,3 +431,5 @@ template<
         return v1 >> v2;
     }, lhs, rhs);
 }
+
+}  // namespace tensors

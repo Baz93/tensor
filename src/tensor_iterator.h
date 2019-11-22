@@ -3,6 +3,9 @@
 #include "tensor_subslice.h"
 
 
+namespace tensors {
+namespace _details {
+
 template<typename T, size_t D> class tensor_iterator :
     private tensor_subslice<T, D>,
     public std::iterator<
@@ -123,3 +126,6 @@ public:
         return _index != other._index;
     }
 };
+
+}  // namespace _details
+}  // namespace tensors

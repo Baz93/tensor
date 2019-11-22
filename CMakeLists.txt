@@ -9,6 +9,6 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
 add_subdirectory(googletest)
 include_directories(${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
 
-set(SOURCE_FILES main.cpp src/tensor.h src/element_wise_operations.h src/tensor_basic_utils.h src/tensor_iterable.h src/tensor_subslice.h src/tensor_iterator.h tensor.h src/tensor_container.h)
+set(SOURCE_FILES main.cpp src/tensor.h src/element_wise_operations.h src/tensor_common.h src/tensor_iterable.h src/tensor_subslice.h src/tensor_iterator.h tensor.h src/tensor_container.h src/undefs.h)
 add_executable(Google_Tests_run ${SOURCE_FILES})
 target_link_libraries(Google_Tests_run gtest gtest_main)

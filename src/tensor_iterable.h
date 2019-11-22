@@ -1,17 +1,21 @@
 #pragma once
 
-#include "tensor_basic_utils.h"
+#include "tensor_common.h"
 
+
+namespace tensors {
+
+template<typename T, size_t D> class tensor_slice;
+template<typename T, size_t D> class tensor_subslice;
+
+namespace _details {
+
+template<typename T, size_t D> class tensor_iterator;
 
 struct size_and_step {
     size_t size;
     ptrdiff_t step;
 };
-
-
-template<typename T, size_t D> class tensor_slice;
-template<typename T, size_t D> class tensor_subslice;
-template<typename T, size_t D> class tensor_iterator;
 
 
 template<typename T, size_t D> class tensor_base {
@@ -131,3 +135,6 @@ public:
         return *ptr();
     }
 };
+
+}  // namespace _details
+}  // namespace tensors

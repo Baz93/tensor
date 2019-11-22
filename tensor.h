@@ -1,35 +1,7 @@
 #pragma once
 
-#include <cassert>
-#include <array>
-#include <vector>
-#include <tuple>
-#include <type_traits>
-
-#define UNUSED(x) (void)(x)
-#define REQUEST_ARG(x) char(*)[bool(x)] = 0
-#define REQUEST_TPL(x) typename = std::enable_if_t<bool(x)>
-
-
-template<typename T> constexpr T constexpr_max(T x) {
-    return x;
-}
-
-template<typename T0, typename T1> constexpr T0 constexpr_max(T0 x0, T1 x1) {
-    return x0 > x1 ? x0 : x1;
-}
-
-template<
-    typename T0, typename T1, typename T2, typename ...T
-> constexpr T0 constexpr_max(T0 x0, T1 x1, T2 x2, T ...x) {
-    return constexpr_max(x0, constexpr_max(x1, x2, x...));
-}
-
-
-struct size_and_step {
-    size_t size;
-    ptrdiff_t step;
-};
+#include "tensor_iterable.h"
+#include "element_wise_operations.h"
 
 
 struct slice_step {
@@ -45,227 +17,17 @@ struct slice_step {
 };
 
 
-template<typename T, size_t D> class tensor;
-template<typename T, size_t D> class tensor_slice;
-template<typename T, size_t D> class tensor_subslice;
-
-
-template<
-    size_t K = 0, typename ...T, size_t ...D, REQUEST_TPL(constexpr_max(D...) >= K)
-> std::array<size_t, constexpr_max(D...) - K> common_shape(
-    tensor_subslice<T, D> ...a
-) {
-    constexpr size_t M = constexpr_max(D...);
-    std::array<size_t, M - K> shape;
-    for (size_t i = 0; i < M; ++i) {
-        size_t res = size_t(-1);
-        for (size_t val : {(i < M - D ? size_t(-1) : a.size(D - M + i))...}) {
-            if (res == size_t(-1)) {
-                res = val;
-            } else {
-                assert(val == size_t(-1) || res == val);
-            }
-        }
-        assert(res != size_t(-1));
-        if (i >= K) {
-            shape[i] = res;
-        }
-    }
-    return shape;
-}
-
-template<typename OP, size_t D, typename ...T> struct element_wise_apply_equal_impl;
-
-template<typename OP, typename ...T> struct element_wise_apply_equal_impl<OP, 0, T...> {
-    static void apply(const size_t *shape, const OP &op, tensor_subslice<T, 0> ...a) {
-        UNUSED(shape);
-        op(a.get()...);
-    }
-};
-
-template<typename OP, size_t D, typename ...T> struct element_wise_apply_equal_impl {
-    static void apply(const size_t *shape, const OP &op, tensor_subslice<T, D> ...a) {
-        for (size_t i = 0; i < *shape; ++i) {
-            element_wise_apply_equal_impl<OP, D - 1, T...>::apply(shape + 1, op, a[i]...);
-        }
-    }
-};
-
-template<typename OP, size_t D, typename ...T> void element_wise_apply_equal (
-    const OP &op, tensor_subslice<T, D> ...a
-) {
-    std::array<size_t, D> shape = common_shape(a...);
-    element_wise_apply_equal_impl<OP, D, T...>::apply(shape.data(), op, a...);
-}
-
-template<typename OP, typename ...T, size_t ...D> void element_wise_apply_impl (
-    const OP &op, tensor_subslice<T, D> ...a
-) {
-    constexpr size_t M = constexpr_max(D...);
-    std::array<size_t, M> shape = common_shape(a...);
-    element_wise_apply_equal_impl<OP, M, T...>::apply(shape.data(), op, (a.template expand<M - D, 0>(shape))...);
-}
-
-template<typename OP, typename ...T> void element_wise_apply (
-    const OP &op, T &...a
-) {
-    element_wise_apply_impl(op, a.forward()...);
-}
-
-template<
-    typename R, size_t K = 0, typename OP, typename ...T, size_t ...D, REQUEST_TPL(constexpr_max(D...) >= K)
-> auto element_wise_calc_reduce_impl(
-    const OP &op, tensor_subslice<T, D> ...a
-) {
-    constexpr size_t M = constexpr_max(D...);
-    std::array<size_t, M> shape = common_shape(a...);
-    tensor<R, M - K> result(common_shape<K>(a...));
-    element_wise_apply_impl(
-        op, result.template expand<0, K>(shape), (a.template expand<M - D, 0>(shape))...
-    );
-    return result;
-}
-
-template<
-    typename R, size_t K = 0, typename OP, typename ...T
-> auto element_wise_calc_reduce (
-    const OP &op, T &...a
-) {
-    return element_wise_calc_reduce_impl<R, K>(op, a.forward()...);
-}
-
-template<typename OP, typename ...T, size_t ...D> auto element_wise_calc_impl(
-    const OP &op, tensor_subslice<T, D> ...a
-) {
-    using R = decltype(op(std::declval<T>()...));
-
-    return element_wise_calc_reduce_impl<R>([&op](R &res, T &...vals) {
-        res = op(vals...);
-    }, a...);
-}
-
-template<typename OP, typename ...T> auto element_wise_calc (
-    const OP &op, T &...a
-) {
-    return element_wise_calc_impl(op, a.forward()...);
-}
-
-
-template<typename T, size_t D> class tensor_iterator;
-
-
-template<typename T, size_t D> class tensor_subslice_base {
+template<typename T, size_t D> class tensor_subslice : public tensor_iterable<T, D> {
 protected:
-    const size_and_step * _shape;
-    T *_ptr;
-
+    using tensor_base<T, D>::_ptr;
 public:
-    using iterator = tensor_iterator<T, D - 1>;
-    using const_iterator = tensor_iterator<const T, D - 1>;
-
-    tensor_subslice_base(const size_and_step *shape, T *ptr) :
-        _shape(shape), _ptr(ptr)
-    {}
-
-public:
-    tensor_subslice<T, D> forward() {
-        return tensor_subslice<T, D>(_shape, _ptr);
-    }
-
-    tensor_subslice<const T, D> forward() const {
-        return tensor_subslice<const T, D>(_shape, _ptr);
-    }
-
-    std::array<size_t, D> sizes() const {
-        std::array<size_t, D> res;
-        for (size_t i = 0 ; i < D; ++i) {
-            res[i] = _shape[i].size;
-        }
-        return res;
-    }
-
-    size_t size(size_t i) const {
-        return _shape[i].size;
-    }
-
+    using tensor_base<T, D>::size;
 protected:
-    size_t step(size_t i) const {
-        return _shape[i].step;
-    }
-};
-
-
-template<typename T, size_t D> class tensor_subslice_iterable : public tensor_subslice_base<T, D> {
-protected:
-    using tensor_subslice_base<T, D>::_ptr;
-    using tensor_subslice_base<T, D>::_shape;
-public:
-    using tensor_subslice_base<T, D>::size;
-
-public:
-    using iterator = tensor_iterator<T, D - 1>;
-    using const_iterator = tensor_iterator<const T, D - 1>;
-
-    tensor_subslice_iterable(const size_and_step *shape_, T *ptr_) :
-        tensor_subslice_base<T, D>(shape_, ptr_)
-    {}
-
-    iterator begin() {
-        return iterator(_shape + 1, _ptr);
-    }
-
-    iterator end() {
-        return begin() += size(0);
-    }
-
-    const_iterator begin() const {
-        return const_iterator(_shape + 1, _ptr);
-    }
-
-    const_iterator end() const {
-        return begin() += size(0);
-    }
-
-    typename iterator::value_type operator[](size_t i) {
-        return *(begin() += i);
-    }
-
-    typename const_iterator::value_type operator[](size_t i) const {
-        return *(begin() += i);
-    }
-};
-
-
-template<typename T> class tensor_subslice_iterable<T, 0> : public tensor_subslice_base<T, 0> {
-protected:
-    using tensor_subslice_base<T, 0>::_ptr;
-
-public:
-    tensor_subslice_iterable(const size_and_step *shape_, T *ptr_) :
-        tensor_subslice_base<T, 0>(shape_, ptr_)
-    {}
-
-    const T& get() const {
-        return *_ptr;
-    }
-
-    T& get() {
-        return *_ptr;
-    }
-};
-
-
-template<typename T, size_t D> class tensor_subslice : public tensor_subslice_iterable<T, D> {
-protected:
-    using tensor_subslice_base<T, D>::_ptr;
-public:
-    using tensor_subslice_base<T, D>::size;
-protected:
-    using tensor_subslice_base<T, D>::step;
+    using tensor_base<T, D>::step;
 
 public:
     tensor_subslice(const size_and_step *shape_, T *ptr_) :
-        tensor_subslice_iterable<T, D>(shape_, ptr_)
+        tensor_iterable<T, D>(shape_, ptr_)
     {}
 
 private:
@@ -676,7 +438,7 @@ template<typename T, size_t D> class tensor_iterator :
     >
 {
 protected:
-    using tensor_subslice_base<T, D>::step;
+    using tensor_base<T, D>::step;
 
     size_t _index;
 
@@ -935,7 +697,7 @@ public:
 
 template<typename T, size_t D> class tensor : public tensor_slice<T, D> {
 protected:
-    using tensor_subslice_base<T, D>::_ptr;
+    using tensor_base<T, D>::_ptr;
 
 private:
     tensor_container<T> _data;

@@ -28,16 +28,16 @@ TEST(Tensor, Constructor) {
         ASSERT_EQ(to_str(a), "{{{0, 0, 0}}, {{0, 0, 0}}}");
     }
     {
-        tensor<int, 3> a(std::vector<std::vector<std::vector<int>>>({{{1, 2, 3}}, {{4, 5, 6}}}));
+        auto a = make_tensor<int, 3>({{{1, 2, 3}}, {{4, 5, 6}}});
         ASSERT_EQ(to_str(a), "{{{1, 2, 3}}, {{4, 5, 6}}}");
     }
 }
 
 TEST(Tensor, Sum) {
     scalar<int> a(1);
-    tensor<int, 1> b(std::vector<int>({1, 2}));
-    tensor<int, 2> c(std::vector<std::vector<int>>({{1, 2}, {3, 4}}));
-    tensor<int, 3> d(std::vector<std::vector<std::vector<int>>>({{{1, 2}, {3, 4}}, {{5, 6}, {7, 8}}}));
+    auto b = make_tensor<int, 1>({1, 2});
+    auto c = make_tensor<int, 2>({{1, 2}, {3, 4}});
+    auto d = make_tensor<int, 3>({{{1, 2}, {3, 4}}, {{5, 6}, {7, 8}}});
     ASSERT_EQ(to_str(a + a), "2");
     ASSERT_EQ(to_str(a + b), "{2, 3}");
     ASSERT_EQ(to_str(a + c), "{{2, 3}, {4, 5}}");

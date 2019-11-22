@@ -42,7 +42,13 @@ template<typename T, size_t D> class tensor : public tensor_slice<T, D> {
 private:
     tensor_container<T> _data;
 
-private:
+    template<
+        typename OTHER_T, size_t OTHER_D, typename OTHER_A
+    > friend tensor<OTHER_T, OTHER_D> make_tensor(OTHER_A&&);
+    template<
+        typename OTHER_T, size_t OTHER_D
+    > friend tensor<OTHER_T, OTHER_D> make_tensor(multidimentional_list<OTHER_T, OTHER_D>&&);
+
     explicit tensor(const std::array<size_t, D> &sizes_, tensor_container<T> &&values) :
         tensor_slice<T, D>(default_shape(sizes_), values.data()),
         _data(std::move(values))
@@ -52,18 +58,17 @@ private:
         tensor{x.sizes, tensor_container<T>(std::move(x.values))}
     {}
 
+    template<typename A> explicit tensor(int, A &&a) :
+        tensor{sizes_and_values<T, D>(std::forward<A>(a))}
+    {}
+
+    explicit tensor(int, multidimentional_list<T, D> &&a) :
+        tensor{sizes_and_values<T, D>(std::move(a))}
+    {}
+
 public:
     explicit tensor(const std::array<size_t, D> &sizes_, const T &value = T()) :
         tensor{sizes_, tensor_container<T>(product(sizes_), value)}
-    {}
-
-    template<typename A, REQUEST_TPL(
-        !std::is_same_v<
-            std::remove_cv_t<std::remove_const_t<A>>,
-            std::array<size_t, D>
-        >
-    )> explicit tensor(A &&a) :
-        tensor{sizes_and_values<T, D>(std::forward<A>(a))}
     {}
 
     tensor(tensor&&) = default;
@@ -82,6 +87,15 @@ public:
         return *this;
     }
 };
+
+
+template<typename T, size_t D, typename A> tensor<T, D> make_tensor(A &&a) {
+    return tensor(0, std::forward<A>(a));
+}
+
+template<typename T, size_t D> tensor<T, D> make_tensor(multidimentional_list<T, D> &&a) {
+    return tensor(0, std::move(a));
+}
 
 
 template<typename T> class scalar : public tensor_slice<T, 0> {

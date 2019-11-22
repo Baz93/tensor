@@ -6,6 +6,27 @@
 template<typename T> using value_store_type = typename std::conditional<std::is_same<T, bool>::value, char, T>::type;
 
 
+template<
+    typename T, size_t D
+> class multidimentional_list : public std::initializer_list<
+    multidimentional_list<T, D - 1>
+> {
+public:
+    multidimentional_list(std::initializer_list<multidimentional_list<T, D - 1>> &&a) :
+        std::initializer_list<multidimentional_list<T, D - 1>>(a)
+    {}
+};
+
+template<
+    typename T
+> class multidimentional_list<T, 1> : public std::initializer_list<T> {
+public:
+    multidimentional_list(std::initializer_list<T> &&a) :
+        std::initializer_list<T>(a)
+    {}
+};
+
+
 template<typename T, size_t D> struct sizes_and_values {
     std::array<size_t, D> sizes;
     std::vector<value_store_type<T>> values;

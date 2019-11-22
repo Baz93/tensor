@@ -4,6 +4,17 @@
 #include "tensor_container.h"
 
 
+class dummy_argument {
+private:
+    friend dummy_argument make_dummy_argument();
+    dummy_argument() {}
+};
+
+dummy_argument make_dummy_argument() {
+    return dummy_argument();
+}
+
+
 template<typename T, size_t D> class tensor_slice : public tensor_subslice<T, D> {
 private:
     const std::array<size_and_step, D> _shape;
@@ -58,11 +69,11 @@ private:
         tensor{x.sizes, tensor_container<T>(std::move(x.values))}
     {}
 
-    template<typename A> explicit tensor(int, A &&a) :
+    template<typename A> explicit tensor(dummy_argument, A &&a) :
         tensor{sizes_and_values<T, D>(std::forward<A>(a))}
     {}
 
-    explicit tensor(int, multidimentional_list<T, D> &&a) :
+    explicit tensor(dummy_argument, multidimentional_list<T, D> &&a) :
         tensor{sizes_and_values<T, D>(std::move(a))}
     {}
 
@@ -70,9 +81,6 @@ public:
     explicit tensor(const std::array<size_t, D> &sizes_, const T &value = T()) :
         tensor{sizes_, tensor_container<T>(product(sizes_), value)}
     {}
-
-    tensor(tensor&&) = default;
-    tensor(const tensor&) = default;
 
     tensor& operator=(const tensor &other) {
         return operator=<T, D>(other);
@@ -90,21 +98,13 @@ public:
 
 
 template<typename T, size_t D, typename A> tensor<T, D> make_tensor(A &&a) {
-    return tensor(0, std::forward<A>(a));
+    return tensor(make_dummy_argument(), std::forward<A>(a));
 }
 
 template<typename T, size_t D> tensor<T, D> make_tensor(multidimentional_list<T, D> &&a) {
-    return tensor(0, std::move(a));
+    return tensor(make_dummy_argument(), std::move(a));
 }
 
-
-template<typename T> class scalar : public tensor_slice<T, 0> {
-private:
-    T _data;
-
-public:
-    explicit scalar(const T &value = T()) :
-        tensor_slice<T, 0>({}, &_data),
-        _data(value)
-    {}
-};
+template<typename T> tensor<T, 0> make_scalar(const T &a) {
+    return tensor<T, 0>({}, a);
+}

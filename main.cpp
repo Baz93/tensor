@@ -34,7 +34,7 @@ TEST(Tensor, Constructor) {
 }
 
 TEST(Tensor, Sum) {
-    scalar<int> a(1);
+    auto a = make_scalar(1);
     auto b = make_tensor<int, 1>({1, 2});
     auto c = make_tensor<int, 2>({{1, 2}, {3, 4}});
     auto d = make_tensor<int, 3>({{{1, 2}, {3, 4}}, {{5, 6}, {7, 8}}});

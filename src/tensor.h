@@ -73,7 +73,21 @@ public:
         tensor{sizes_, _details::tensor_container<T>(_details::product(sizes_), value)}
     {}
 
-    tensor& operator=(const tensor &other) {
+    template<typename OTHER_T> tensor(tensor_subslice<OTHER_T, D> other) :
+        tensor{other.sizes()}
+    {
+        *this = other;
+    }
+
+    tensor(const tensor &other) :
+        tensor{static_cast<const tensor_subslice<T, D>&>(other)}
+    {}
+
+    tensor(tensor &&other) :
+        tensor{other.sizes(), std::move(other._data)}
+    {}
+
+    tensor operator=(const tensor &other) {
         return operator=<T, D>(other);
     }
 

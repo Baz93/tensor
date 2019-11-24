@@ -24,6 +24,9 @@ private:
     T *_ptr;
 
 public:
+    using value = T;
+    static constexpr size_t depth = D;
+
     using iterator = tensor_iterator<T, D - 1>;
     using const_iterator = tensor_iterator<const T, D - 1>;
 

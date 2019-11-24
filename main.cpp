@@ -10,8 +10,8 @@ using namespace std;
 #define REQUEST_ARG(...) char(*)[bool(__VA_ARGS__)] = 0
 #define REQUEST_TPL(...) typename = std::enable_if_t<bool(__VA_ARGS__)>
 
-#define GET_VALUE(...) typename decltype(__VA_ARGS__)::value
-#define GET_DEPTH(...) decltype(__VA_ARGS__)::depth
+#define GET_VALUE(...) typename remove_reference_t<decltype(__VA_ARGS__)>::value
+#define GET_DEPTH(...) remove_reference_t<decltype(__VA_ARGS__)>::depth
 
 #define T_ASSERT_EQ(a, ...) ASSERT_EQ(to_vector(a), to_vector(make_tensor<GET_VALUE(a), GET_DEPTH(a)>(__VA_ARGS__)))
 
@@ -201,6 +201,15 @@ TEST(Tensor, Sublices) {
         }, 2}
     });
     T_ASSERT_EQ(e, {{{636, 635}, {637, 636}}, {{736, 735}, {737, 736}}});
+    auto f = e.slice<3>({1, 0, 1}, {
+        slice_step{{}, 3},
+        slice_step{{
+            slice_step::dimension_step{1},
+            slice_step::dimension_step{0}
+        }, 1},
+        slice_step{{}, 2}
+    });
+    T_ASSERT_EQ(f, {{{735, 735}}, {{735, 735}}, {{735, 735}}});
 }
 
 //TEST(Tensor, Assign) {

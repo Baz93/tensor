@@ -10,8 +10,8 @@ using namespace std;
 #define REQUEST_ARG(...) char(*)[bool(__VA_ARGS__)] = 0
 #define REQUEST_TPL(...) typename = std::enable_if_t<bool(__VA_ARGS__)>
 
-#define GET_VALUE(...) typename remove_reference_t<decltype(__VA_ARGS__)>::value
-#define GET_DEPTH(...) remove_reference_t<decltype(__VA_ARGS__)>::depth
+#define GET_VALUE(...) typename decltype(__VA_ARGS__)::value
+#define GET_DEPTH(...) decltype(__VA_ARGS__)::depth
 
 #define T_ASSERT_EQ(a, ...) ASSERT_EQ(to_vector(a), to_vector(make_tensor<GET_VALUE(a), GET_DEPTH(a)>(__VA_ARGS__)))
 
@@ -201,37 +201,74 @@ TEST(Tensor, Sublices) {
         }, 2}
     });
     T_ASSERT_EQ(e, {{{636, 635}, {637, 636}}, {{736, 735}, {737, 736}}});
-    auto f = e.slice<3> {{1, 0, 1}, {
-        slice_step{{
-            slice_step::dimension_step{},
-        }, 3},
-        slice_step{{
-            slice_step::dimension_step{1},
-        }, 1},
-        slice_step{{
-            slice_step::dimension_step{},
-        }, 2}
-    }};
 }
 
-TEST(Tensor, XorAssignment) {
-    auto a = make_tensor<int, 1>({9});
-    for (size_t i = 0; i < 9; ++i) {
-        a[i].get() = 1 << i;
-    }
-    T_ASSERT_EQ(a, {
-        0b000000001, 0b000000010, 0b000000100,
-        0b000001000, 0b000010000, 0b000100000,
-        0b001000000, 0b010000000, 0b100000000
-    });
-    T_ASSERT_EQ(a ^ a, {0, 0, 0, 0, 0, 0, 0, 0, 0});
-        {
-        auto b = a.slice()
-        b[1] ^= b[0];
-    }
-    T_ASSERT_EQ(a, {
-        0b000000001, 0b000000010, 0b000000100,
-        0b000001001, 0b000010010, 0b000100100,
-        0b001000000, 0b010000000, 0b100000000
-    });
-}
+//TEST(Tensor, Assign) {
+//    auto a = make_tensor<int, 2>({1, 2, 3}, {4, 5, 6});
+//    auto b = make_tensor<int, 2>({1, 2, 3}, {4, 5, 6}, {7, 8, 9});
+//    {
+//        auto x = a;
+//        ASSERT_NE(&x.get(), &a.get());
+//        ASSERT_EQ(to_str(x), "1");
+//        x = a0;
+//        ASSERT_EQ(to_str(x), "0");
+//        x = a;
+//        ASSERT_EQ(to_str(x), "1");
+//    }
+//    {
+//        auto x = b;
+//        ASSERT_NE(&x[0].get(), &b[0].get());
+//        ASSERT_EQ(to_str(x), "{1, 2}");
+//        x = a;
+//        ASSERT_EQ(to_str(x), "{1, 1}");
+//        x = b;
+//        ASSERT_EQ(to_str(x), "{1, 2}");
+//    }
+//    {
+//        auto x = c;
+//        ASSERT_NE(&x[0][0].get(), &c[0][0].get());
+//        ASSERT_EQ(to_str(x), "{{1, 2}, {3, 4}}");
+//        x = b;
+//        ASSERT_EQ(to_str(x), "{{1, 2}, {1, 2}}");
+//        x = a;
+//        ASSERT_EQ(to_str(x), "{{1, 1}, {1, 1}}");
+//        x = c;
+//        ASSERT_EQ(to_str(x), "{{1, 2}, {3, 4}}");
+//    }
+//    {
+//        auto x = d;
+//        ASSERT_NE(&x[0][0][0].get(), &d[0][0][0].get());
+//        ASSERT_EQ(to_str(x), "{{{1, 2}, {3, 4}}, {{5, 6}, {7, 8}}}");
+//        x = c;
+//        ASSERT_EQ(to_str(x), "{{{1, 2}, {3, 4}}, {{1, 2}, {3, 4}}}");
+//        x = b;
+//        ASSERT_EQ(to_str(x), "{{{1, 2}, {1, 2}}, {{1, 2}, {1, 2}}}");
+//        x = a;
+//        ASSERT_EQ(to_str(x), "{{{1, 1}, {1, 1}}, {{1, 1}, {1, 1}}}");
+//        x = d;
+//        ASSERT_EQ(to_str(x), "{{{1, 2}, {3, 4}}, {{5, 6}, {7, 8}}}");
+//    }
+//}
+//
+//TEST(Tensor, Sum) {
+//    auto a = make_scalar(1);
+//    auto b = make_tensor<int, 1>({1, 2});
+//    auto c = make_tensor<int, 2>({{1, 2}, {3, 4}});
+//    auto d = make_tensor<int, 3>({{{1, 2}, {3, 4}}, {{5, 6}, {7, 8}}});
+//    ASSERT_EQ(to_str(a + a), "2");
+//    ASSERT_EQ(to_str(a + b), "{2, 3}");
+//    ASSERT_EQ(to_str(a + c), "{{2, 3}, {4, 5}}");
+//    ASSERT_EQ(to_str(a + d), "{{{2, 3}, {4, 5}}, {{6, 7}, {8, 9}}}");
+//    ASSERT_EQ(to_str(b + a), "{2, 3}");
+//    ASSERT_EQ(to_str(b + b), "{2, 4}");
+//    ASSERT_EQ(to_str(b + c), "{{2, 4}, {4, 6}}");
+//    ASSERT_EQ(to_str(b + d), "{{{2, 4}, {4, 6}}, {{6, 8}, {8, 10}}}");
+//    ASSERT_EQ(to_str(c + a), "{{2, 3}, {4, 5}}");
+//    ASSERT_EQ(to_str(c + b), "{{2, 4}, {4, 6}}");
+//    ASSERT_EQ(to_str(c + c), "{{2, 4}, {6, 8}}");
+//    ASSERT_EQ(to_str(c + d), "{{{2, 4}, {6, 8}}, {{6, 8}, {10, 12}}}");
+//    ASSERT_EQ(to_str(d + a), "{{{2, 3}, {4, 5}}, {{6, 7}, {8, 9}}}");
+//    ASSERT_EQ(to_str(d + b), "{{{2, 4}, {4, 6}}, {{6, 8}, {8, 10}}}");
+//    ASSERT_EQ(to_str(d + c), "{{{2, 4}, {6, 8}}, {{6, 8}, {10, 12}}}");
+//    ASSERT_EQ(to_str(d + d), "{{{2, 4}, {6, 8}}, {{10, 12}, {14, 16}}}");
+//}

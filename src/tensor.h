@@ -102,12 +102,20 @@ public:
 };
 
 
-template<typename T, size_t D, typename A> tensor<T, D> make_tensor(A &&a) {
+template<typename T, size_t D, typename A, REQUEST_TPL(D > 0)> tensor<T, D> make_tensor(A &&a) {
     return _details::construct_tensor(_details::sizes_and_values<T, D>(std::forward<A>(a)));
 }
 
-template<typename T, size_t D> tensor<T, D> make_tensor(_details::multidimentional_list<T, D> &&a) {
+template<typename T, size_t D, REQUEST_TPL(D > 0)> tensor<T, D> make_tensor(_details::multidimentional_list<T, D> &&a) {
     return _details::construct_tensor(_details::sizes_and_values<T, D>(std::move(a)));
+}
+
+template<typename T, size_t D, REQUEST_TPL(D == 0)> tensor<T, D> make_tensor(T &&a) {
+    return _details::construct_tensor(_details::sizes_and_values<T, D>(std::forward<T>(a)));
+}
+
+template<typename T, size_t D, REQUEST_TPL(D == 0)> tensor<T, D> make_tensor(const T &a) {
+    return _details::construct_tensor(_details::sizes_and_values<T, D>(a));
 }
 
 template<typename A> auto make_scalar(A &&a) {

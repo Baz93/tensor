@@ -10,320 +10,153 @@ using namespace std;
 #define REQUEST_ARG(...) char(*)[bool(__VA_ARGS__)] = 0
 #define REQUEST_TPL(...) typename = std::enable_if_t<bool(__VA_ARGS__)>
 
+#define T_ASSERT_EQ(a, ...) ASSERT_EQ(to_vector(a), to_vector(similar_tensor(a, __VA_ARGS__)))
 
-template<typename T, size_t D> ostream& write_impl(ostream &out, tensor_subslice<T, D> a, REQUEST_ARG(D == 0)) {
-    return out << a.get();
+template<typename T, size_t D> auto similar_tensor(
+    tensor_subslice<T, D>, const _details::multidimentional_list<T, D> &a
+) {
+    return make_tensor<T, D>(a);
 }
 
-template<typename T, size_t D> ostream& write_impl(ostream &out, tensor_subslice<T, D> a, REQUEST_ARG(D > 0)) {
-    out << "{";
-    bool first = true;
+template<typename T> auto similar_tensor(
+    tensor_subslice<T, 0>, const T &a
+) {
+    return make_tensor<T, 0>(a);
+}
+
+template<typename T, typename D, REQUEST_TPL(!is_same_v<T, D>)> auto similar_tensor(
+    tensor_subslice<T, 0>, const D &a
+) {
+    return make_tensor<T, 0>(a);
+}
+
+template<typename T, size_t D> auto to_vector(tensor_subslice<T, D> a, REQUEST_ARG(D == 0)) {
+    return a.get();
+}
+
+template<typename T, size_t D> auto to_vector(tensor_subslice<T, D> a, REQUEST_ARG(D > 0)) {
+    vector<decltype(to_vector(a[0]))> res;
     for (auto b : a) {
-        if (!first) {
-            out << ", ";
-        }
-        first = false;
-        write_impl(out, b);
+        res.emplace_back(to_vector(b));
     }
-    out << "}";
-    return out;
+    return res;
 }
 
-template<typename T, size_t D> ostream& operator<<(ostream &out, tensor_subslice<T, D> a) {
-    return write_impl(out, a);
-}
 
-template<typename T, size_t D> std::string to_str(tensor_subslice<T, D> a) {
-    stringstream s;
-    s << a;
-    return s.str();
+TEST(Tensor, EqualityAndNotEquality) {
+    auto a = make_tensor<int, 3>({
+        {{111, 112, 113}, {121, 122, 123}, {131, 132, 133}},
+        {{211, 212, 213}, {221, 222, 223}, {231, 232, 233}},
+        {{311, 312, 313}, {321, 322, 323}, {331, 332, 333}}
+    });
+    T_ASSERT_EQ(a, {
+        {{111, 112, 113}, {121, 122, 123}, {131, 132, 133}},
+        {{211, 212, 213}, {221, 222, 223}, {231, 232, 233}},
+        {{311, 312, 313}, {321, 322, 323}, {331, 332, 333}}
+    });
+    T_ASSERT_EQ(a[1], {{211, 212, 213}, {221, 222, 223}, {231, 232, 233}});
+    T_ASSERT_EQ(a[2][0], {311, 312, 313});
+    T_ASSERT_EQ(a[1][2][1], 232);
+    auto b = a.slice<2>({0, 2, 2}, {
+        slice_step{{
+            slice_step::dimension_step{1, -1}
+        }, 2},
+        slice_step{{
+            slice_step::dimension_step{0, 1},
+            slice_step::dimension_step{2, -1},
+        }, 3},
+    });
+    T_ASSERT_EQ(b, {{133, 232, 331}, {123, 222, 321}});
+    T_ASSERT_EQ(b[0], {133, 232, 331});
+    T_ASSERT_EQ(b[1][1], 222);
 }
 
 TEST(Tensor, Constructor) {
-    {
-        tensor<int, 3> a({2, 1, 3});
-        ASSERT_EQ(to_str(a), "{{{0, 0, 0}}, {{0, 0, 0}}}");
-    }
-    {
-        tensor<int, 3> a({2, 1, 3}, 7);
-        ASSERT_EQ(to_str(a), "{{{7, 7, 7}}, {{7, 7, 7}}}");
-    }
-    {
-        tensor<int, 4> a({3, 0, 2, 0});
-        ASSERT_EQ(to_str(a), "{{}, {}, {}}");
-    }
-    {
-        tensor<int, 0> a({});
-        ASSERT_EQ(to_str(a), "0");
-    }
-    {
-        tensor<int, 1> a({1});
-        ASSERT_EQ(to_str(a), "{0}");
-    }
-    {
-        tensor<int, 1> a({0});
-        ASSERT_EQ(to_str(a), "{}");
-    }
-    {
-        tensor<int, 2> a({1, 1});
-        ASSERT_EQ(to_str(a), "{{0}}");
-    }
-    {
-        tensor<int, 2> a({2, 2});
-        ASSERT_EQ(to_str(a), "{{0, 0}, {0, 0}}");
-    }
-    {
-        tensor<string, 0> a({}, "abc");
-        ASSERT_EQ(to_str(a), "abc");
-    }
-    {
-        tensor<string, 2> a({2, 2}, "abc");
-        ASSERT_EQ(to_str(a), "{{abc, abc}, {abc, abc}}");
-    }
-    {
-        tensor<bool, 0> a({}, true);
-        ASSERT_EQ(to_str(a), "1");
-    }
-    {
-        tensor<bool, 2> a({2, 2}, true);
-        ASSERT_EQ(to_str(a), "{{1, 1}, {1, 1}}");
-    }
+    T_ASSERT_EQ((tensor<int, 3>({2, 1, 3})), {{{0, 0, 0}}, {{0, 0, 0}}});
+    T_ASSERT_EQ((tensor<int, 3>({2, 1, 3}, 7)), {{{7, 7, 7}}, {{7, 7, 7}}});
+    T_ASSERT_EQ((tensor<int, 4>({3, 0, 2, 0})), {{}, {}, {}});
+    T_ASSERT_EQ((tensor<int, 0>({})), 0);
+    T_ASSERT_EQ((tensor<int, 1>({1})), {0});
+    T_ASSERT_EQ((tensor<int, 1>({0})), {});
+    T_ASSERT_EQ((tensor<int, 2>({1, 1})), {{0}});
+    T_ASSERT_EQ((tensor<int, 2>({2, 2})), {{0, 0}, {0, 0}});
+    T_ASSERT_EQ((tensor<string, 0>({}, "abc")), "abc");
+    T_ASSERT_EQ((tensor<string, 2>({2, 2}, "abc")), {{"abc", "abc"}, {"abc", "abc"}});
+    T_ASSERT_EQ((tensor<bool, 0>({}, true)), 1);
+    T_ASSERT_EQ((tensor<bool, 2>({2, 2}, true)), {{1, 1}, {1, 1}});
 }
 
 TEST(Tensor, MakeTensor) {
-    {
-        auto a = make_tensor<int, 3>({{{1, 2, 3}}, {{4, 5, 6}}});
-        ASSERT_EQ(to_str(a), "{{{1, 2, 3}}, {{4, 5, 6}}}");
-    }
-    {
-        auto a = make_tensor<int, 3>({});
-        ASSERT_EQ(to_str(a), "{}");
-    }
-    {
-        auto a = make_tensor<char, 2>(std::vector<std::string>{"abc", "def"});
-        ASSERT_EQ(to_str(a), "{{a, b, c}, {d, e, f}}");
-    }
-    {
-        auto a = make_tensor<string, 0>("abc");
-        ASSERT_EQ(to_str(a), "abc");
-    }
-    {
-        auto a = make_tensor<char, 1>(string("abc"));
-        ASSERT_EQ(to_str(a), "{a, b, c}");
-    }
-    {
-        auto a = make_scalar(string("abc"));
-        ASSERT_EQ(to_str(a), "abc");
-    }
-    {
-        auto a = make_scalar(true);
-        ASSERT_EQ(to_str(a), "1");
-    }
+    T_ASSERT_EQ((make_tensor<int, 3>({{{1, 2, 3}}, {{4, 5, 6}}})), {{{1, 2, 3}}, {{4, 5, 6}}});
+    T_ASSERT_EQ((make_tensor<int, 3>({})), {});
+    T_ASSERT_EQ((make_tensor<char, 2>(std::vector<std::string>{"abc", "def"})), {{'a', 'b', 'c'}, {'d', 'e', 'f'}});
+    T_ASSERT_EQ((make_tensor<string, 0>("abc")), "abc");
+    T_ASSERT_EQ((make_tensor<char, 1>(string("abc"))), {'a', 'b', 'c'});
+    T_ASSERT_EQ(make_scalar(string("abc")), "abc");
+    T_ASSERT_EQ(make_scalar(true), 1);
     {
         const vector<vector<int>> v{{1, 2}, {3, 4}};
         auto a = make_tensor<vector<int>, 1>(v);
-        ASSERT_EQ(a[0].get(), vector<int>({1, 2}));
-        ASSERT_EQ(v[0], vector<int>({1, 2}));
-        ASSERT_EQ(a[1].get(), vector<int>({3, 4}));
-        ASSERT_EQ(v[1], vector<int>({3, 4}));
+        auto b = make_tensor<vector<int>, 1>(v);
+        T_ASSERT_EQ(a, {{1, 2}, {3, 4}});
+        T_ASSERT_EQ(b, {{1, 2}, {3, 4}});
     }
     {
         vector<vector<int>> v{{1, 2}, {3, 4}};
         auto a = make_tensor<vector<int>, 1>(v);
-        ASSERT_EQ(a[0].get(), vector<int>({1, 2}));
-        ASSERT_EQ(v[0], vector<int>({1, 2}));
-        ASSERT_EQ(a[1].get(), vector<int>({3, 4}));
-        ASSERT_EQ(v[1], vector<int>({3, 4}));
+        auto b = make_tensor<vector<int>, 1>(v);
+        T_ASSERT_EQ(a, {{1, 2}, {3, 4}});
+        T_ASSERT_EQ(b, {{1, 2}, {3, 4}});
     }
     {
         vector<vector<int>> v{{1, 2}, {3, 4}};
         auto a = make_tensor<vector<int>, 1>(move(v));
-        ASSERT_EQ(a[0].get(), vector<int>({1, 2}));
-        ASSERT_EQ(v[0], vector<int>({}));
-        ASSERT_EQ(a[1].get(), vector<int>({3, 4}));
-        ASSERT_EQ(v[1], vector<int>({}));
+        auto b = make_tensor<vector<int>, 1>(move(v));
+        T_ASSERT_EQ(a, {{1, 2}, {3, 4}});
+        T_ASSERT_EQ(b, {{}, {}});
     }
     {
         const vector<int> v{1, 2};
         auto a = make_tensor<vector<int>, 0>(v);
-        ASSERT_EQ(a.get(), vector<int>({1, 2}));
-        ASSERT_EQ(v, vector<int>({1, 2}));
+        auto b = make_tensor<vector<int>, 0>(v);
+        T_ASSERT_EQ(a, {1, 2});
+        T_ASSERT_EQ(b, {1, 2});
     }
     {
         vector<int> v{1, 2};
         auto a = make_tensor<vector<int>, 0>(v);
-        ASSERT_EQ(a.get(), vector<int>({1, 2}));
-        ASSERT_EQ(v, vector<int>({1, 2}));
+        auto b = make_tensor<vector<int>, 0>(v);
+        T_ASSERT_EQ(a, {1, 2});
+        T_ASSERT_EQ(b, {1, 2});
     }
     {
         vector<int> v{1, 2};
         auto a = make_tensor<vector<int>, 0>(move(v));
-        ASSERT_EQ(a.get(), vector<int>({1, 2}));
-        ASSERT_EQ(v, vector<int>({}));
+        auto b = make_tensor<vector<int>, 0>(move(v));
+        T_ASSERT_EQ(a, {1, 2});
+        T_ASSERT_EQ(b, vector<int>{});
     }
     {
         const vector<int> v{1, 2};
         auto a = make_scalar(v);
-        ASSERT_EQ(a.get(), vector<int>({1, 2}));
-        ASSERT_EQ(v, vector<int>({1, 2}));
+        auto b = make_scalar(v);
+        T_ASSERT_EQ(a, {1, 2});
+        T_ASSERT_EQ(b, {1, 2});
     }
     {
         vector<int> v{1, 2};
         auto a = make_scalar(v);
-        ASSERT_EQ(a.get(), vector<int>({1, 2}));
-        ASSERT_EQ(v, vector<int>({1, 2}));
+        auto b = make_scalar(v);
+        T_ASSERT_EQ(a, {1, 2});
+        T_ASSERT_EQ(b, {1, 2});
     }
     {
         vector<int> v{1, 2};
         auto a = make_scalar(move(v));
-        ASSERT_EQ(a.get(), vector<int>({1, 2}));
-        ASSERT_EQ(v, vector<int>({}));
+        auto b = make_scalar(move(v));
+        T_ASSERT_EQ(a, {1, 2});
+        T_ASSERT_EQ(b, vector<int>{});
     }
-}
-
-TEST(Tensor, Slices) {
-    auto a = make_tensor<int, 2>({{1, 2, 3}, {4, 5, 6}, {7, 8, 9}});
-    ASSERT_EQ(to_str(a), "{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}");
-    ASSERT_EQ(to_str(a.slice<1>({0, 0}, {
-        slice_step{{
-            slice_step::dimension_step{0}
-        }, 3}
-    })), "{1, 4, 7}");
-    ASSERT_EQ(to_str(a.slice<1>({0, 1}, {
-        slice_step{{
-            slice_step::dimension_step{0}
-        }, 3}
-    })), "{2, 5, 8}");
-    ASSERT_EQ(to_str(a.slice<1>({0, 2}, {
-        slice_step{{
-            slice_step::dimension_step{0}
-        }, 3}
-    })), "{3, 6, 9}");
-    ASSERT_EQ(to_str(a.slice<1>({0, 0}, {
-        slice_step{{
-            slice_step::dimension_step{1}
-        }, 3}
-    })), "{1, 2, 3}");
-    ASSERT_EQ(to_str(a.slice<1>({1, 0}, {
-        slice_step{{
-            slice_step::dimension_step{1}
-        }, 3}
-    })), "{4, 5, 6}");
-    ASSERT_EQ(to_str(a.slice<1>({2, 0}, {
-        slice_step{{
-            slice_step::dimension_step{1}
-        }, 3}
-    })), "{7, 8, 9}");
-    ASSERT_EQ(to_str(a.slice<0>({1, 0}, {})), "4");
-    ASSERT_EQ(to_str(a.slice<0>({1, 2}, {})), "6");
-    ASSERT_EQ(to_str(a.slice<2>({0, 0}, {
-        slice_step{{
-            slice_step::dimension_step{1}
-        }, 3},
-        slice_step{{
-            slice_step::dimension_step{0}
-        }, 3},
-    })), "{{1, 4, 7}, {2, 5, 8}, {3, 6, 9}}");
-    ASSERT_EQ(to_str(a.slice<2>({0, 2}, {
-        slice_step{{
-            slice_step::dimension_step{0}
-        }, 3},
-        slice_step{{
-            slice_step::dimension_step{1, -1}
-        }, 3},
-    })), "{{3, 2, 1}, {6, 5, 4}, {9, 8, 7}}");
-    ASSERT_EQ(to_str(a.slice<2>({2, 0}, {
-        slice_step{{
-            slice_step::dimension_step{0, -1}
-        }, 3},
-        slice_step{{
-            slice_step::dimension_step{1}
-        }, 3},
-    })), "{{7, 8, 9}, {4, 5, 6}, {1, 2, 3}}");
-    ASSERT_EQ(to_str(a.slice<2>({2, 0}, {
-        slice_step{{
-            slice_step::dimension_step{1}
-        }, 3},
-        slice_step{{
-            slice_step::dimension_step{0, -1}
-        }, 3},
-    })), "{{7, 4, 1}, {8, 5, 2}, {9, 6, 3}}");
-    ASSERT_EQ(to_str(a.slice<2>({0, 0}, {
-        slice_step{{
-            slice_step::dimension_step{0}
-        }, 2},
-        slice_step{{
-            slice_step::dimension_step{1}
-        }, 2},
-    })), "{{1, 2}, {4, 5}}");
-    ASSERT_EQ(to_str(a.slice<2>({0, 1}, {
-        slice_step{{
-            slice_step::dimension_step{0}
-        }, 2},
-        slice_step{{
-            slice_step::dimension_step{1}
-        }, 2},
-    })), "{{2, 3}, {5, 6}}");
-    ASSERT_EQ(to_str(a.slice<2>({1, 0}, {
-        slice_step{{
-            slice_step::dimension_step{0}
-        }, 2},
-        slice_step{{
-            slice_step::dimension_step{1}
-        }, 2},
-    })), "{{4, 5}, {7, 8}}");
-    ASSERT_EQ(to_str(a.slice<2>({1, 1}, {
-        slice_step{{
-            slice_step::dimension_step{0}
-        }, 2},
-        slice_step{{
-            slice_step::dimension_step{1}
-        }, 2},
-    })), "{{5, 6}, {8, 9}}");
-    ASSERT_EQ(to_str(a.slice<2>({0, 0}, {
-        slice_step{{
-            slice_step::dimension_step{0, 2}
-        }, 2},
-        slice_step{{
-            slice_step::dimension_step{1, 2}
-        }, 2},
-    })), "{{1, 3}, {7, 9}}");
-    ASSERT_EQ(to_str(a.slice<1>({0, 0}, {
-        slice_step{{
-            slice_step::dimension_step{0},
-            slice_step::dimension_step{1}
-        }, 3}
-    })), "{1, 5, 9}");
-    ASSERT_EQ(to_str(a.slice<1>({0, 2}, {
-        slice_step{{
-            slice_step::dimension_step{0},
-            slice_step::dimension_step{1, -1}
-        }, 3}
-    })), "{3, 5, 7}");
-    ASSERT_EQ(to_str(a.slice<2>({0, 1}, {
-        slice_step{{
-            slice_step::dimension_step{0, 1},
-            slice_step::dimension_step{1, -1}
-        }, 2},
-        slice_step{{
-            slice_step::dimension_step{0, 1},
-            slice_step::dimension_step{1, 1}
-        }, 2}
-    })), "{{2, 6}, {4, 8}}");
-    ASSERT_EQ(to_str(a.slice<4>({1, 1}, {
-        slice_step{{
-            slice_step::dimension_step{1, 1},
-        }, 2},
-        slice_step{{
-            slice_step::dimension_step{0, -1},
-        }, 2},
-        slice_step{{
-            slice_step::dimension_step{1, -1},
-        }, 2},
-        slice_step{{
-            slice_step::dimension_step{0, 1},
-        }, 2}
-    })), "{{{{5, 8}, {4, 7}}, {{2, 5}, {1, 4}}}, {{{6, 9}, {5, 8}}, {{3, 6}, {2, 5}}}}");
 }
 
 TEST(Tensor, Sublices) {
@@ -341,12 +174,12 @@ TEST(Tensor, Sublices) {
             slice_step::dimension_step{0, 1}
         }, 5},
     });
-    ASSERT_EQ(to_str(c), "{"
-        "{{555, 556, 557, 558, 559}, {655, 656, 657, 658, 659}, {755, 756, 757, 758, 759}}, "
-        "{{545, 546, 547, 548, 549}, {645, 646, 647, 648, 649}, {745, 746, 747, 748, 749}}, "
-        "{{535, 536, 537, 538, 539}, {635, 636, 637, 638, 639}, {735, 736, 737, 738, 739}}, "
-        "{{525, 526, 527, 528, 529}, {625, 626, 627, 628, 629}, {725, 726, 727, 728, 729}}"
-    "}");
+    T_ASSERT_EQ(c, {
+        {{555, 556, 557, 558, 559}, {655, 656, 657, 658, 659}, {755, 756, 757, 758, 759}},
+        {{545, 546, 547, 548, 549}, {645, 646, 647, 648, 649}, {745, 746, 747, 748, 749}},
+        {{535, 536, 537, 538, 539}, {635, 636, 637, 638, 639}, {735, 736, 737, 738, 739}},
+        {{525, 526, 527, 528, 529}, {625, 626, 627, 628, 629}, {725, 726, 727, 728, 729}}
+    });
     auto d = c[2].slice<4>({0, 1}, {
         slice_step{{
             slice_step::dimension_step{0, 1},
@@ -362,15 +195,15 @@ TEST(Tensor, Sublices) {
             slice_step::dimension_step{1}
         }, 3},
     });
-    ASSERT_EQ(to_str(d), "{"
-        "{"
-            "{{536, 537, 538}, {636, 637, 638}}, "
-            "{{537, 538, 539}, {637, 638, 639}}"
-        "}, {"
-            "{{635, 636, 637}, {735, 736, 737}}, "
-            "{{636, 637, 638}, {736, 737, 738}}"
-        "}"
-    "}");
+    T_ASSERT_EQ(d, {
+        {
+            {{536, 537, 538}, {636, 637, 638}},
+            {{537, 538, 539}, {637, 638, 639}}
+        }, {
+            {{635, 636, 637}, {735, 736, 737}},
+            {{636, 637, 638}, {736, 737, 738}}
+        }
+    });
     auto e = d[1][0].slice<3>({0, 1}, {
         slice_step{{
             slice_step::dimension_step{0},
@@ -382,7 +215,7 @@ TEST(Tensor, Sublices) {
             slice_step::dimension_step{1, -1}
         }, 2}
     });
-    ASSERT_EQ(to_str(e), "{{{636, 635}, {637, 636}}, {{736, 735}, {737, 736}}}");
+    T_ASSERT_EQ(e, {{{636, 635}, {637, 636}}, {{736, 735}, {737, 736}}});
 }
 
 //TEST(Tensor, Assign) {

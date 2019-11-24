@@ -10,25 +10,10 @@ using namespace std;
 #define REQUEST_ARG(...) char(*)[bool(__VA_ARGS__)] = 0
 #define REQUEST_TPL(...) typename = std::enable_if_t<bool(__VA_ARGS__)>
 
-#define T_ASSERT_EQ(a, ...) ASSERT_EQ(to_vector(a), to_vector(similar_tensor(a, __VA_ARGS__)))
+#define GET_VALUE(...) typename decltype(__VA_ARGS__)::value
+#define GET_DEPTH(...) decltype(__VA_ARGS__)::depth
 
-template<typename T, size_t D> auto similar_tensor(
-    tensor_subslice<T, D>, const _details::multidimentional_list<T, D> &a
-) {
-    return make_tensor<T, D>(a);
-}
-
-template<typename T> auto similar_tensor(
-    tensor_subslice<T, 0>, const T &a
-) {
-    return make_tensor<T, 0>(a);
-}
-
-template<typename T, typename D, REQUEST_TPL(!is_same_v<T, D>)> auto similar_tensor(
-    tensor_subslice<T, 0>, const D &a
-) {
-    return make_tensor<T, 0>(a);
-}
+#define T_ASSERT_EQ(a, ...) ASSERT_EQ(to_vector(a), to_vector(make_tensor<GET_VALUE(a), GET_DEPTH(a)>(__VA_ARGS__)))
 
 template<typename T, size_t D> auto to_vector(tensor_subslice<T, D> a, REQUEST_ARG(D == 0)) {
     return a.get();
@@ -155,7 +140,7 @@ TEST(Tensor, MakeTensor) {
         auto a = make_scalar(move(v));
         auto b = make_scalar(move(v));
         T_ASSERT_EQ(a, {1, 2});
-        T_ASSERT_EQ(b, vector<int>{});
+        T_ASSERT_EQ(b, {});
     }
 }
 

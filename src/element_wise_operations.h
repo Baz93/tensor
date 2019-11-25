@@ -66,13 +66,6 @@ template<typename OP, size_t D, typename ...T> struct element_wise_apply_equal_i
     }
 };
 
-template<typename OP, size_t D, typename ...T> void element_wise_apply_equal (
-    const OP &op, tensor_subslice<T, D> ...a
-) {
-    std::array<size_t, D> shape = common_shape(a...);
-    element_wise_apply_equal_impl<OP, D, T...>::apply(shape.data(), op, a...);
-}
-
 template<typename OP, typename ...T, size_t ...D> void element_wise_apply_impl (
     const OP &op, tensor_subslice<T, D> ...a
 ) {

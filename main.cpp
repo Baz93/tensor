@@ -212,72 +212,55 @@ TEST(Tensor, Sublices) {
     T_ASSERT_EQ(f, {{{735, 735}}, {{735, 735}}, {{735, 735}}});
 }
 
-//TEST(Tensor, Assign) {
-//    auto a = make_tensor<int, 2>({1, 2, 3}, {4, 5, 6});
-//    auto b = make_tensor<int, 2>({1, 2, 3}, {4, 5, 6}, {7, 8, 9});
-//    {
-//        auto x = a;
-//        ASSERT_NE(&x.get(), &a.get());
-//        ASSERT_EQ(to_str(x), "1");
-//        x = a0;
-//        ASSERT_EQ(to_str(x), "0");
-//        x = a;
-//        ASSERT_EQ(to_str(x), "1");
-//    }
-//    {
-//        auto x = b;
-//        ASSERT_NE(&x[0].get(), &b[0].get());
-//        ASSERT_EQ(to_str(x), "{1, 2}");
-//        x = a;
-//        ASSERT_EQ(to_str(x), "{1, 1}");
-//        x = b;
-//        ASSERT_EQ(to_str(x), "{1, 2}");
-//    }
-//    {
-//        auto x = c;
-//        ASSERT_NE(&x[0][0].get(), &c[0][0].get());
-//        ASSERT_EQ(to_str(x), "{{1, 2}, {3, 4}}");
-//        x = b;
-//        ASSERT_EQ(to_str(x), "{{1, 2}, {1, 2}}");
-//        x = a;
-//        ASSERT_EQ(to_str(x), "{{1, 1}, {1, 1}}");
-//        x = c;
-//        ASSERT_EQ(to_str(x), "{{1, 2}, {3, 4}}");
-//    }
-//    {
-//        auto x = d;
-//        ASSERT_NE(&x[0][0][0].get(), &d[0][0][0].get());
-//        ASSERT_EQ(to_str(x), "{{{1, 2}, {3, 4}}, {{5, 6}, {7, 8}}}");
-//        x = c;
-//        ASSERT_EQ(to_str(x), "{{{1, 2}, {3, 4}}, {{1, 2}, {3, 4}}}");
-//        x = b;
-//        ASSERT_EQ(to_str(x), "{{{1, 2}, {1, 2}}, {{1, 2}, {1, 2}}}");
-//        x = a;
-//        ASSERT_EQ(to_str(x), "{{{1, 1}, {1, 1}}, {{1, 1}, {1, 1}}}");
-//        x = d;
-//        ASSERT_EQ(to_str(x), "{{{1, 2}, {3, 4}}, {{5, 6}, {7, 8}}}");
-//    }
-//}
-//
-//TEST(Tensor, Sum) {
-//    auto a = make_scalar(1);
-//    auto b = make_tensor<int, 1>({1, 2});
-//    auto c = make_tensor<int, 2>({{1, 2}, {3, 4}});
-//    auto d = make_tensor<int, 3>({{{1, 2}, {3, 4}}, {{5, 6}, {7, 8}}});
-//    ASSERT_EQ(to_str(a + a), "2");
-//    ASSERT_EQ(to_str(a + b), "{2, 3}");
-//    ASSERT_EQ(to_str(a + c), "{{2, 3}, {4, 5}}");
-//    ASSERT_EQ(to_str(a + d), "{{{2, 3}, {4, 5}}, {{6, 7}, {8, 9}}}");
-//    ASSERT_EQ(to_str(b + a), "{2, 3}");
-//    ASSERT_EQ(to_str(b + b), "{2, 4}");
-//    ASSERT_EQ(to_str(b + c), "{{2, 4}, {4, 6}}");
-//    ASSERT_EQ(to_str(b + d), "{{{2, 4}, {4, 6}}, {{6, 8}, {8, 10}}}");
-//    ASSERT_EQ(to_str(c + a), "{{2, 3}, {4, 5}}");
-//    ASSERT_EQ(to_str(c + b), "{{2, 4}, {4, 6}}");
-//    ASSERT_EQ(to_str(c + c), "{{2, 4}, {6, 8}}");
-//    ASSERT_EQ(to_str(c + d), "{{{2, 4}, {6, 8}}, {{6, 8}, {10, 12}}}");
-//    ASSERT_EQ(to_str(d + a), "{{{2, 3}, {4, 5}}, {{6, 7}, {8, 9}}}");
-//    ASSERT_EQ(to_str(d + b), "{{{2, 4}, {4, 6}}, {{6, 8}, {8, 10}}}");
-//    ASSERT_EQ(to_str(d + c), "{{{2, 4}, {6, 8}}, {{6, 8}, {10, 12}}}");
-//    ASSERT_EQ(to_str(d + d), "{{{2, 4}, {6, 8}}, {{10, 12}, {14, 16}}}");
-//}
+TEST(Tensor, XorAssignment) {
+    tensor<int, 1> a({9});
+    for (size_t i = 0; i < 9; ++i) {
+        a[i].get() = 1 << i;
+    }
+    T_ASSERT_EQ(a, {
+        0b000000001, 0b000000010, 0b000000100,
+        0b000001000, 0b000010000, 0b000100000,
+        0b001000000, 0b010000000, 0b100000000
+    });
+    T_ASSERT_EQ(a ^ a, {0, 0, 0, 0, 0, 0, 0, 0, 0});
+    auto b = a.slice<2>({0}, {
+        slice_step{{
+            slice_step::dimension_step{0, 3}
+        }, 3},
+        slice_step{{
+            slice_step::dimension_step{0, 1}
+        }, 3}
+    });
+    auto c = a.slice<4>({0}, {
+        slice_step{{
+            slice_step::dimension_step{0}
+        }, 3},
+        slice_step{{
+            slice_step::dimension_step{0}
+        }, 3},
+        slice_step{{
+            slice_step::dimension_step{0}
+        }, 3},
+        slice_step{{
+            slice_step::dimension_step{0}
+        }, 3}
+    });
+    b[1] ^= b[0];
+    T_ASSERT_EQ(a, {
+        0b000000001, 0b000000010, 0b000000100,
+        0b000001001, 0b000010010, 0b000100100,
+        0b001000000, 0b010000000, 0b100000000
+    });
+    b ^= b[1][1];
+    T_ASSERT_EQ(a, {
+        0b000010011, 0b000010000, 0b000010110,
+        0b000011011, 0b000000000, 0b000100100,
+        0b001000000, 0b010000000, 0b100000000
+    });
+    c[1] ^= b;
+    T_ASSERT_EQ(a, {
+        0b000010011, 0b000000011, 0b000001000,
+        0b000010011, 0b001010000, 0b101000000,
+        0b100011000, 0b110000000, 0b100000000
+    });
+}

@@ -111,7 +111,7 @@ public:
         return begin() += size(0);
     }
 
-    typename iterator::value_type& operator[](size_t i) {
+    typename iterator::value_type operator[](size_t i) {
         return *(begin() += i);
     }
 

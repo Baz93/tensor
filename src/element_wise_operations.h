@@ -77,11 +77,11 @@ template<typename OP, typename ...T, size_t ...D> void element_wise_apply_impl (
 template<
     typename R, size_t K = 0, typename OP, typename ...T, size_t ...D, REQUEST_TPL(constexpr_max(D...) >= K)
 > auto element_wise_calc_reduce_impl(
-    const OP &op, tensor_subslice<T, D> ...a
+    const OP &op, const R &val, tensor_subslice<T, D> ...a
 ) {
     constexpr size_t M = constexpr_max(D...);
     std::array<size_t, M> shape = common_shape(a...);
-    tensor<R, M - K> result(common_shape<K>(a...));
+    tensor<R, M - K> result(common_shape<K>(a...), val);
     element_wise_apply_impl(
         op, result.template expand<0, K>(shape), (a.template expand<M - D, 0>(shape))...
     );
@@ -93,9 +93,9 @@ template<typename OP, typename ...T, size_t ...D> auto element_wise_calc_impl(
 ) {
     using R = decltype(op(std::declval<T>()...));
 
-    return element_wise_calc_reduce_impl<R>([&op](R &res, T &...vals) {
+    return element_wise_calc_reduce_impl([&op](R &res, T &...vals) {
         res = op(vals...);
-    }, a...);
+    }, R(), a...);
 }
 
 }  // namespace _details
@@ -110,9 +110,9 @@ template<typename OP, typename ...T> void element_wise_apply (
 template<
     typename R, size_t K = 0, typename OP, typename ...T
 > auto element_wise_calc_reduce (
-    const OP &op, T &...a
+    const OP &op, const R &val, T &...a
 ) {
-    return _details::element_wise_calc_reduce_impl<R, K>(op, a.forward()...);
+    return _details::element_wise_calc_reduce_impl<R, K>(op, val, a.forward()...);
 }
 
 template<typename OP, typename ...T> auto element_wise_calc (

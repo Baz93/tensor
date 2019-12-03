@@ -32,7 +32,7 @@ template<
 ) {
     constexpr size_t M = constexpr_max(D...);
     std::array<size_t, M - K> shape;
-    for (size_t i = 0; i < M; ++i) {
+    for (size_t i = 0; i < M - K; ++i) {
         size_t res = _details::npos;
         for (size_t val : {(i < M - D ? _details::npos : a.size(D - M + i))...}) {
             if (res == _details::npos) {
@@ -42,9 +42,7 @@ template<
             }
         }
         assert(res != _details::npos);
-        if (i >= K) {
-            shape[i] = res;
-        }
+        shape[i] = res;
     }
     return shape;
 }
@@ -75,7 +73,7 @@ template<typename OP, typename ...T, size_t ...D> void element_wise_apply_impl (
 }
 
 template<
-    typename R, size_t K = 0, typename OP, typename ...T, size_t ...D, REQUEST_TPL(constexpr_max(D...) >= K)
+    size_t K = 0, typename R, typename OP, typename ...T, size_t ...D, REQUEST_TPL(constexpr_max(D...) >= K)
 > auto element_wise_calc_reduce_impl(
     const OP &op, const R &val, tensor_subslice<T, D> ...a
 ) {
@@ -101,21 +99,21 @@ template<typename OP, typename ...T, size_t ...D> auto element_wise_calc_impl(
 }  // namespace _details
 
 
-template<typename OP, typename ...T> void element_wise_apply (
+template<typename OP, typename ...T> void element_wise_apply(
     const OP &op, T &...a
 ) {
     _details::element_wise_apply_impl(op, a.forward()...);
 }
 
 template<
-    typename R, size_t K = 0, typename OP, typename ...T
-> auto element_wise_calc_reduce (
+    size_t K = 0, typename R, typename OP, typename ...T
+> auto element_wise_calc_reduce(
     const OP &op, const R &val, T &...a
 ) {
-    return _details::element_wise_calc_reduce_impl<R, K>(op, val, a.forward()...);
+    return _details::element_wise_calc_reduce_impl<K>(op, val, a.forward()...);
 }
 
-template<typename OP, typename ...T> auto element_wise_calc (
+template<typename OP, typename ...T> auto element_wise_calc(
     const OP &op, T &...a
 ) {
     return _details::element_wise_calc_impl(op, a.forward()...);

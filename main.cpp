@@ -264,3 +264,22 @@ TEST(Tensor, XorAssignment) {
         0b100011000, 0b110000000, 0b100000000
     });
 }
+
+TEST(Tensor, Matmul) {
+    T_ASSERT_EQ(matmul(
+        make_tensor<int, 1>({1, 2, 4}),
+        make_tensor<int, 1>({1, 5, 25})
+    ), 111);
+    T_ASSERT_EQ(matmul(
+        make_tensor<int, 2>({{1, 2, 3}, {3, 2, 1}}),
+        make_tensor<int, 1>({1, 2, 3})
+    ), {14, 10});
+    T_ASSERT_EQ(matmul(
+        make_tensor<int, 1>({1, 2, 3}),
+        make_tensor<int, 2>({{1, 1}, {1, 2}, {1, 3}})
+    ), {6, 14});
+    T_ASSERT_EQ(matmul(
+        make_tensor<int, 3>({{{0, 1}, {-1, 2}, {-2, 3}}, {{-3, 4}, {-4, 5}, {-5, 6}}}),
+        make_tensor<int, 3>({{{0, 1, 2}, {-1, -2, -3}}, {{3, 4, 5}, {-4, -5, -6}}})
+    ), {{{-1, -2, -3}, {-2, -5, -8}, {-3, -8, -13}}, {{-25, -32, -39}, {-32, -41, -50}, {-39, -50, -61}}});
+}

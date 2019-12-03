@@ -90,6 +90,27 @@ private:
         return slice_impl<LK + D + RK, R>(shift, order);
     }
 
+    template<typename R> tensor_slice<R, D> transpose_impl(
+        size_t d1, size_t d2
+    ) const {
+        std::array<size_t, D> shift;
+        shift.fill(0);
+
+        std::array<slice_step, D> order;
+        for (size_t i = 0; i < D; ++i) {
+            size_t j = i;
+            if (i == d1) {
+                j = d2;
+            }
+            if (i == d2) {
+                j = d1;
+            }
+            order[i] = {{{j}}};
+        }
+
+        return slice_impl<D, R>(shift, order);
+    }
+
 public:
     template<size_t K> tensor_slice<T, K> slice(
         const std::array<size_t, D> shift, const std::array<slice_step, K> &order
@@ -113,6 +134,18 @@ public:
         const std::array<size_t, LK + D + RK> &new_shape
     ) const {
         return expand_impl<LK, RK, const T>(new_shape);
+    }
+
+    tensor_slice<T, D> transpose(
+        size_t d1, size_t d2
+    ) {
+        return transpose_impl<T>(d1, d2);
+    }
+
+    tensor_slice<const T, D> transpose(
+        size_t d1, size_t d2
+    ) const {
+        return transpose_impl<const T>(d1, d2);
     }
 
     tensor_subslice& operator=(const tensor_subslice &other) {

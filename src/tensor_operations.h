@@ -92,4 +92,16 @@ __TENSOR_UNARY_OPERATOR(~)
 #undef __TENSOR_BINARY_OPERATOR
 #undef __TENSOR_UNARY_OPERATOR
 
+template<
+    typename T1, size_t D1, typename T2, size_t D2, REQUEST_TPL(D1 > 1 && D2 > 1)
+> auto matmul(
+    tensor_subslice<T1, D1> lhs, tensor_subslice<T2, D2> rhs
+) {
+    using R = decltype(std::declval<T1>() * std::declval<T2>());
+
+    return _details::element_wise_calc_reduce_impl<1>([](R &res, const T1 &l, const T2 &r) {
+        res += l * r;
+    }, R(), lhs, rhs.transpose(D2 - 2, D2 - 1));
+}
+
 }  // namespace tensors

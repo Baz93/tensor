@@ -99,7 +99,7 @@ template<
 ) {
     using R = decltype(std::declval<T1>() * std::declval<T2>());
 
-    return _details::element_wise_calc_reduce_impl<1>(
+    return element_wise_calc_reduce<1>(
         [](R &res, const T1 &l, const T2 &r) {
             res += l * r;
         }, R(),
@@ -115,7 +115,7 @@ template<
 ) {
     using R = decltype(std::declval<T1>() * std::declval<T2>());
 
-    return _details::element_wise_calc_reduce_impl<1>(
+    return element_wise_calc_reduce<1>(
         [](R &res, const T1 &l, const T2 &r) {
             res += l * r;
         }, R(),
@@ -131,7 +131,7 @@ template<
 ) {
     using R = decltype(std::declval<T1>() * std::declval<T2>());
 
-    return _details::element_wise_calc_reduce_impl<1>(
+    return element_wise_calc_reduce<1>(
         [](R &res, const T1 &l, const T2 &r) {
             res += l * r;
         }, R(),
@@ -147,7 +147,7 @@ template<
 ) {
     using R = decltype(std::declval<T1>() * std::declval<T2>());
 
-    return _details::element_wise_calc_reduce_impl<1>(
+    return element_wise_calc_reduce<1>(
         [](R &res, const T1 &l, const T2 &r) {
             res += l * r;
         }, R(),

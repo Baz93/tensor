@@ -100,7 +100,7 @@ template<typename OP, typename ...T, size_t ...D> auto element_wise_calc_impl(
 
 
 template<typename OP, typename ...T> void element_wise_apply(
-    const OP &op, T &...a
+    const OP &op, T &&...a
 ) {
     _details::element_wise_apply_impl(op, a.forward()...);
 }
@@ -108,13 +108,13 @@ template<typename OP, typename ...T> void element_wise_apply(
 template<
     size_t K = 0, typename R, typename OP, typename ...T
 > auto element_wise_calc_reduce(
-    const OP &op, const R &val, T &...a
+    const OP &op, const R &val, T &&...a
 ) {
     return _details::element_wise_calc_reduce_impl<K>(op, val, a.forward()...);
 }
 
 template<typename OP, typename ...T> auto element_wise_calc(
-    const OP &op, T &...a
+    const OP &op, T &&...a
 ) {
     return _details::element_wise_calc_impl(op, a.forward()...);
 }
